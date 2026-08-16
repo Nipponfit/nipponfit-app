@@ -1,0 +1,15 @@
+{
+  "name": "Nippon Fit \u2014 Dojo Manager",
+  "short_name": "Nippon Fit",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#07101F",
+  "theme_color": "#12305B",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "160x160",
+      "type": "image/png"
+    }
+  ]
+}
