@@ -1,5 +1,5 @@
 /* Nippon Fit — service worker. Makes the app installable and work offline. */
-const CACHE = "nipponfit-live-v3";
+const CACHE = "nipponfit-live-v4";
 const ASSETS = ["./", "./index.html", "./manifest.json",
                 "./icon-192.png", "./icon-512.png", "./maskable-512.png"];
 
