@@ -20,6 +20,56 @@
 </style>
 <!-- your Supabase settings; edit config.js, never this file -->
 <script src="config.js"></script>
+<script>
+/* Nippon Fit — diagnostics. Shows what went wrong instead of a blank screen.
+   Safe: it only ever displays information, never changes behaviour. */
+(function () {
+  var shown = false;
+  function show(title, detail) {
+    if (shown) return; shown = true;
+    var d = document.createElement("div");
+    d.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;" +
+      "background:#7f1d1d;color:#fff;font:13px/1.5 system-ui,sans-serif;" +
+      "padding:14px 16px;max-height:55vh;overflow:auto;box-shadow:0 -4px 20px rgba(0,0,0,.4)";
+    d.innerHTML =
+      '<div style="font-weight:700;margin-bottom:6px">' + title + '</div>' +
+      '<div style="white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12px">' +
+      String(detail).replace(/[<>&]/g, function (c) {
+        return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
+      }) + '</div>' +
+      '<div style="margin-top:10px;opacity:.85">Screenshot this and send it to your developer.</div>' +
+      '<button style="margin-top:10px;background:#fff;color:#7f1d1d;border:0;' +
+      'padding:7px 14px;border-radius:6px;font-weight:600" ' +
+      'onclick="this.parentNode.remove()">Close</button>';
+    document.body.appendChild(d);
+  }
+
+  window.addEventListener("error", function (e) {
+    show("The app hit an error", (e.message || "unknown") +
+      "\n\nat " + (e.filename || "?") + " line " + (e.lineno || "?"));
+  });
+
+  window.addEventListener("unhandledrejection", function (e) {
+    var r = e.reason || {};
+    show("A request to the database failed",
+      (r.message || String(r)) +
+      (r.code ? "\ncode: " + r.code : "") +
+      (r.hint ? "\nhint: " + r.hint : "") +
+      (r.details ? "\ndetails: " + r.details : ""));
+  });
+
+  // If the page paints nothing at all, say so rather than sitting blank.
+  setTimeout(function () {
+    var root = document.getElementById("root") || document.body;
+    if (root && root.innerText.trim().length === 0) {
+      show("The screen rendered empty",
+        "The app started but drew nothing. This usually means the sign-in " +
+        "worked but your profile role is not what the app expected, so every " +
+        "list came back with no rows.\n\nRun 13-fix-everything.sql and read STEP 8.");
+    }
+  }, 6000);
+})();
+</script>
 </head>
 <body>
 <div id="root"><div id="boot">Loading</div></div>
