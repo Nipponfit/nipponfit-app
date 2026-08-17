@@ -24,6 +24,21 @@
 /* Nippon Fit — diagnostics. Shows what went wrong instead of a blank screen.
    Safe: it only ever displays information, never changes behaviour. */
 (function () {
+  // Escape hatch: app.nipponfit.com/?reset signs you out and clears the
+  // stored session, so a crashing screen can never trap you.
+  if (location.search.indexOf("reset") > -1) {
+    try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      navigator.serviceWorker.getRegistrations().then(function (rs) {
+        rs.forEach(function (r) { r.unregister(); });
+      });
+    }
+    if (window.caches && caches.keys) {
+      caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
+    }
+    setTimeout(function () { location.replace("/"); }, 400);
+  }
+
   var shown = false;
   function show(title, detail) {
     if (shown) return; shown = true;
