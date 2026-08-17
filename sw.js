@@ -1,5 +1,5 @@
 /* Nippon Fit — service worker. Makes the app installable and work offline. */
-const CACHE = "nipponfit-v1";
+const CACHE = "nipponfit-live-v3";
 const ASSETS = ["./", "./index.html", "./manifest.json",
                 "./icon-192.png", "./icon-512.png", "./maskable-512.png"];
 
@@ -18,6 +18,9 @@ self.addEventListener("activate", (e) => {
 // Network first, fall back to cache, so updates arrive but it still works offline.
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  // never cache the database or the settings file
+  const u = new URL(e.request.url);
+  if (u.hostname.endsWith("supabase.co") || u.pathname.endsWith("config.js")) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {
