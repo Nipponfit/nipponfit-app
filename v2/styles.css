@@ -1,0 +1,307 @@
+/* =====================================================================
+   NIPPON FIT — all styling, in one readable file
+   Colours are defined once at the top. Change them here and they change
+   everywhere.
+   ===================================================================== */
+
+:root {
+  --navy-deep: #0a1533;
+  --navy: #12224d;
+  --cream: #fdf8ec;
+  --cream-dim: #f3ecdb;
+  --ink: #1c1a15;
+  --ink-soft: #5b5648;
+  --maroon: #7f1d1d;
+  --maroon-dark: #641717;
+  --gold: #c9a227;
+  --line: #e2d9c3;
+  --green: #2e8b45;
+  --amber: #e8730b;
+  --red: #b3261e;
+
+  --radius: 14px;
+  --pad: 16px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--navy-deep);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ===================================================================
+   Landing and sign-in
+   =================================================================== */
+
+.screen-centre {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: radial-gradient(circle at 50% 0%, var(--navy) 0%, var(--navy-deep) 70%);
+}
+
+.panel {
+  width: 100%;
+  max-width: 430px;
+  background: var(--cream);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.panel-body { padding: 26px 24px 30px; text-align: center; }
+
+.belt-strip { display: flex; height: 7px; }
+.belt-strip i { flex: 1; }
+
+.brand-word {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+  margin: 6px 0 2px;
+}
+
+.brand-sub {
+  font-size: 10.5px;
+  letter-spacing: 0.28em;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+
+.headline {
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin: 0 0 22px;
+}
+
+.dojo-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 22px;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.dojo-strip span:not(:last-child)::after { content: " ·"; margin-left: 8px; }
+
+/* ===================================================================
+   Buttons, inputs
+   =================================================================== */
+
+.btn {
+  appearance: none;
+  border: 0;
+  border-radius: 9px;
+  background: var(--maroon);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn:hover { background: var(--maroon-dark); }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.btn.wide { width: 100%; }
+.btn.quiet { background: transparent; color: var(--maroon); border: 1px solid var(--line); }
+.btn.quiet:hover { background: var(--cream-dim); }
+.btn.small { padding: 7px 13px; font-size: 13px; }
+
+.field { display: block; text-align: left; margin-bottom: 14px; }
+.field-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  font: inherit;
+  color: var(--ink);
+}
+.input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+.help {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin-top: 16px;
+}
+
+/* ===================================================================
+   The signed-in app
+   =================================================================== */
+
+.app { min-height: 100dvh; background: var(--cream-dim); }
+
+.topbar {
+  background: var(--navy-deep);
+  color: #fff;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.topbar-name { font-weight: 700; font-size: 15px; }
+.topbar-role {
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  background: var(--navy);
+  padding: 0 8px;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font: inherit;
+  font-size: 13px;
+  padding: 12px 14px;
+  white-space: nowrap;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+.tab[data-on="1"] { color: #fff; border-bottom-color: var(--gold); font-weight: 600; }
+
+.content { padding: var(--pad); max-width: 900px; margin: 0 auto; }
+
+.card {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.card-title { margin: 0 0 3px; font-size: 17px; }
+.card-sub { margin: 0 0 14px; font-size: 13px; color: var(--ink-soft); }
+
+/* Statistics row */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+.stat { background: #fff; border: 1px solid var(--line); border-radius: 11px; padding: 14px; }
+.stat-value { font-size: 24px; font-weight: 700; }
+.stat-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); margin-top: 2px; }
+.stat-note { font-size: 12px; color: var(--ink-soft); margin-top: 5px; }
+
+/* Tables scroll sideways rather than breaking the page */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th {
+  text-align: left;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.table td { padding: 10px; border-bottom: 1px solid var(--line); }
+.table tr:last-child td { border-bottom: 0; }
+.table .num { text-align: right; white-space: nowrap; }
+
+/* States */
+.loading { text-align: center; padding: 30px 10px; color: var(--ink-soft); }
+.spinner {
+  width: 26px; height: 26px; margin: 0 auto 10px;
+  border: 3px solid var(--line); border-top-color: var(--maroon);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-box {
+  background: #fdecea;
+  border: 1px solid #f3c0bb;
+  border-left: 4px solid var(--red);
+  border-radius: 9px;
+  padding: 13px 15px;
+  margin-bottom: 14px;
+}
+.error-box strong { display: block; margin-bottom: 4px; }
+.error-box p { margin: 0; font-size: 13.5px; }
+
+.empty { color: var(--ink-soft); font-size: 14px; padding: 12px 0; }
+.muted { color: var(--ink-soft); font-size: 12.5px; }
+
+.notice-banner {
+  background: #fff6e0;
+  border: 1px solid #f0d9a0;
+  border-left: 4px solid var(--amber);
+  border-radius: 9px;
+  padding: 13px 15px;
+  margin-bottom: 16px;
+}
+
+.pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--cream-dim);
+  color: var(--ink-soft);
+}
+.pill.paid { background: #e4f4e8; color: #1d6b32; }
+.pill.due { background: #fff2d8; color: #8a5a00; }
+.pill.overdue { background: #fdecea; color: #96261d; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: var(--navy-deep);
+  color: #fff;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  box-shadow: var(--shadow);
+  z-index: 500;
+}
+
+@media (min-width: 700px) {
+  .content { padding: 24px; }
+  .headline { font-size: 38px; }
+}
