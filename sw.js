@@ -1,10 +1,28 @@
-/* Nippon Fit — service worker. Makes the app installable and work offline. */
-const CACHE = "nipponfit-live-v4";
-const ASSETS = ["./", "./index.html", "./manifest.json",
-                "./icon-192.png", "./icon-512.png", "./maskable-512.png"];
+/* Nippon Fit — service worker.
+   Makes the app installable and usable with a poor signal.
+
+   Network first: you always get the newest version when there is a
+   connection, and the last one that worked when there is not. */
+
+const CACHE = "nipponfit-v2-2";
+
+const ASSETS = [
+  "./", "./index.html", "./styles.css", "./manifest.json",
+  "./js/app.js", "./js/db.js", "./js/ui.js", "./js/reference.js",
+  "./js/screens/account.js", "./js/screens/child.js", "./js/screens/attendance.js",
+  "./js/screens/instructor-pay.js", "./js/screens/payouts.js", "./js/screens/fees.js",
+  "./js/screens/students.js", "./js/screens/dashboard.js", "./js/screens/grading.js",
+  "./js/screens/attendance-report.js", "./logo.png", "./seal.png",
+  "./js/screens/medals.js", "./js/screens/people.js", "./js/screens/notices.js",
+  "./icon-192.png", "./icon-512.png", "./maskable-512.png",
+];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => Promise.allSettled(ASSETS.map((a) => c.add(a))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {
@@ -15,12 +33,13 @@ self.addEventListener("activate", (e) => {
   );
 });
 
-// Network first, fall back to cache, so updates arrive but it still works offline.
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
-  // never cache the database or the settings file
-  const u = new URL(e.request.url);
-  if (u.hostname.endsWith("supabase.co") || u.pathname.endsWith("config.js")) return;
+
+  const url = new URL(e.request.url);
+  // Never cache the database or the settings file.
+  if (url.hostname.endsWith("supabase.co") || url.pathname.endsWith("config.js")) return;
+
   e.respondWith(
     fetch(e.request)
       .then((res) => {
@@ -30,4 +49,23 @@ self.addEventListener("fetch", (e) => {
       })
       .catch(() => caches.match(e.request).then((r) => r || caches.match("./index.html")))
   );
+});
+
+/* Fee reminders pushed to the phone. The database raises the reminder;
+   this displays it even when the app is closed. */
+self.addEventListener("push", (e) => {
+  let data = { title: "Nippon Fit", body: "You have a new notice." };
+  try { data = { ...data, ...e.data.json() }; } catch {}
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "./icon-192.png",
+      badge: "./icon-192.png",
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  e.waitUntil(clients.openWindow("./"));
 });

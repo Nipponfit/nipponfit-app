@@ -45,16 +45,4 @@ window.NIPPONFIT_CONFIG = {
 
   // Shown to parents who need help signing in
   HELP_PHONE: "9945616005",
-
-  // Your UPI ID, e.g. "nipponfit@okhdfcbank" or "9019550423@ybl".
-  //
-  // Fill this in and the Fees screen shows a one-tap payment link that
-  // opens the parent's GPay or PhonePe with the exact amount already in
-  // it. This costs nothing at all — no gateway, no percentage, no
-  // account to open. You tick "Paid" yourself once the money arrives.
-  //
-  // Leave it blank and everything else still works.
-  // Your other ID, 9945616005@ibl, works too — swap it in if this one
-  // ever stops accepting payments.
-  UPI_ID: "nipponfit@idfcbank",
 };
