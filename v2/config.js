@@ -54,5 +54,7 @@ window.NIPPONFIT_CONFIG = {
   // account to open. You tick "Paid" yourself once the money arrives.
   //
   // Leave it blank and everything else still works.
-  UPI_ID: "",
+  // Your other ID, 9945616005@ibl, works too — swap it in if this one
+  // ever stops accepting payments.
+  UPI_ID: "nipponfit@idfcbank",
 };
