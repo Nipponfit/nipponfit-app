@@ -11,6 +11,7 @@
 
 import * as db from "../db.js";
 import { reference, feeFor, beltFor } from "../reference.js";
+import { gradingFormUrl, gradingFeeUpiLink } from "../jotform.js";
 import { el, card, table, stat, money, shortDate, button, section, empty, errorBox } from "../ui.js";
 
 const CFG = window.NIPPONFIT_CONFIG || {};
@@ -182,16 +183,20 @@ function gradingCard(student, belt, next, rate) {
   const eligible = student.grading_eligible;
   const problem = el("div", {});
 
+  /* The form opens already filled in: name, father's name, date of
+     birth, mobile, ID card number, current belt, the belt being graded
+     into, and the fee. The parent checks it and submits. */
   const openForm = el(
     "a",
-    {
-      class: "btn wide",
-      href: CFG.GRADING_FORM_URL || "https://form.jotform.com/251281655478061",
-      target: "_blank",
-      rel: "noopener",
-    },
-    "Open the grading form"
+    { class: "btn wide", href: gradingFormUrl(student, belt, next), target: "_blank", rel: "noopener" },
+    "Open the grading form — already filled in"
   );
+
+  const upiLink = gradingFeeUpiLink(student, next);
+  const payFee = upiLink
+    ? el("a", { class: "btn wide quiet", href: upiLink, style: "margin-top:8px" },
+         `Pay the grading fee — ${money(next.grading_fee)}`)
+    : null;
 
   return card(
     "Grading",
@@ -208,9 +213,9 @@ function gradingCard(student, belt, next, rate) {
               : "Your child has been put forward for grading. Please fill in the form."
           ),
           !student.grading_form_done ? openForm : null,
-          student.grading_form_done && !student.grading_fee_paid
-            ? el("p", { class: "muted" }, "The grading fee is still to be paid.")
-            : null
+          student.grading_fee_paid
+            ? el("p", { class: "muted" }, "Grading fee received. Thank you.")
+            : payFee
         )
       : el(
           "p",

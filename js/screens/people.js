@@ -35,6 +35,7 @@ function render(rows, refresh) {
         )
       : card("Logins", null, empty("Everyone on the club list can sign in.")),
 
+    addPerson(refresh),
     resetPassword(),
 
     card(
@@ -87,6 +88,68 @@ function createAll(count, refresh) {
     el("p", { class: "muted" }, "They change it themselves from the Account tab once they are in."),
     problem,
     go
+  );
+}
+
+/* Add somebody new — another admin, an instructor, or a parent.
+   Two steps in one: they go on the club list, then they get a login.
+   Only the founder and admin can reach this screen at all. */
+function addPerson(refresh) {
+  const name = input({ placeholder: "Their full name" });
+  const phone = input({ inputmode: "tel", placeholder: "10-digit mobile number", autocapitalize: "off" });
+  const role = el(
+    "select",
+    { class: "input" },
+    el("option", { value: "admin" }, "Admin — can do everything except the Dashboard"),
+    el("option", { value: "instructor" }, "Instructor — attendance and their own pay only"),
+    el("option", { value: "parent" }, "Parent — their own children only")
+  );
+  const password = input({ value: "nkc2026", placeholder: "Starting password" });
+  const problem = el("div", {});
+
+  const add = button(
+    "Add them and create their login",
+    async () => {
+      problem.replaceChildren();
+      const mobile = phoneDigits(phone.value);
+
+      if (!name.value.trim()) return problem.append(errorBox(new Error("Enter their name.")));
+      if (mobile.length !== 10) return problem.append(errorBox(new Error("Enter their 10-digit mobile number.")));
+      if (password.value.length < 6) return problem.append(errorBox(new Error("The password needs at least 6 characters.")));
+
+      add.disabled = true;
+      add.textContent = "Adding…";
+      try {
+        // 1 · put them on the club list, or correct the role if already there
+        await db.upsert(
+          "allowed_users",
+          [{ phone: "+91" + mobile, role: role.value, full_name: name.value.trim() }],
+          "phone"
+        );
+        // 2 · give them a login
+        const message = await db.rpc("admin_create_login", { p_contact: mobile, p_password: password.value });
+        toast(typeof message === "string" ? message : "Added.");
+        name.value = "";
+        phone.value = "";
+        refresh();
+      } catch (err) {
+        problem.append(errorBox(err));
+      }
+      add.disabled = false;
+      add.textContent = "Add them and create their login";
+    },
+    "wide"
+  );
+
+  return card(
+    "Add someone new",
+    "Use this to take on another admin or instructor. Tell them the starting password and ask them to change it from their Account tab.",
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Full name"), name),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Mobile number"), phone),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "What they can do"), role),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Starting password"), password),
+    problem,
+    add
   );
 }
 
