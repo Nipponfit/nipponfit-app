@@ -305,3 +305,88 @@ html, body {
   .content { padding: 24px; }
   .headline { font-size: 38px; }
 }
+
+/* ===================================================================
+   The logo, and its animation on the landing and sign-in screens
+   ------------------------------------------------------------------
+   The mark rises and fades in, then a gold shimmer sweeps across it —
+   masked to the shape of the logo itself, so the light only touches the
+   letters and never the background behind them.
+   =================================================================== */
+
+.logo-wrap {
+  position: relative;
+  display: inline-block;
+  width: 230px;
+  max-width: 74%;
+  margin: 4px auto 2px;
+}
+
+.logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  animation: logo-rise 900ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.logo-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.85) 50%,
+    transparent 62%
+  );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  -webkit-mask-image: url("logo.png");
+  mask-image: url("logo.png");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  animation: logo-shine 4s ease-in-out 900ms infinite;
+}
+
+.seal {
+  display: block;
+  width: 74px;
+  margin: 10px auto 0;
+  animation: logo-rise 900ms cubic-bezier(0.2, 0.7, 0.3, 1) 260ms both;
+}
+
+.panel-body .eyebrow,
+.panel-body .headline,
+.panel-body .btn,
+.panel-body .dojo-strip {
+  animation: logo-rise 700ms ease-out both;
+}
+.panel-body .eyebrow    { animation-delay: 380ms; }
+.panel-body .headline   { animation-delay: 460ms; }
+.panel-body .btn        { animation-delay: 560ms; }
+.panel-body .dojo-strip { animation-delay: 660ms; }
+
+@keyframes logo-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes logo-shine {
+  0%        { background-position: 165% 0; }
+  55%, 100% { background-position: -165% 0; }
+}
+
+/* Anyone who has asked their phone to reduce motion gets none of it. */
+@media (prefers-reduced-motion: reduce) {
+  .logo, .seal, .logo-shine,
+  .panel-body .eyebrow, .panel-body .headline,
+  .panel-body .btn, .panel-body .dojo-strip {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

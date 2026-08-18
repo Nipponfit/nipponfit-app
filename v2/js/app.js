@@ -19,12 +19,14 @@ const TABS = {
   parent: [["child", "My child"], ["account", "Account"]],
   instructor: [["mark", "Mark attendance"], ["pay", "My sessions & pay"], ["account", "Account"]],
   admin: [
-    ["students", "Students"], ["mark", "Attendance"], ["grading", "Grading"],
+    ["students", "Students"], ["mark", "Attendance"], ["report", "Attendance report"],
+    ["grading", "Grading"],
     ["medals", "Achievements"], ["fees", "Fees due"], ["payouts", "Instructor pay"],
     ["people", "People"], ["notices", "Notices"], ["account", "Account"],
   ],
   founder: [
     ["board", "Dashboard"], ["students", "Students"], ["mark", "Attendance"],
+    ["report", "Attendance report"],
     ["grading", "Grading"], ["medals", "Achievements"], ["fees", "Fees due"],
     ["payouts", "Instructor pay"], ["people", "People"], ["notices", "Notices"],
     ["account", "Account"],
@@ -41,6 +43,7 @@ const SCREENS = {
   fees: async () => (await import("./screens/fees.js")).feesScreen,
   students: async () => (await import("./screens/students.js")).studentsScreen,
   board: async () => (await import("./screens/dashboard.js")).dashboardScreen,
+  report: async () => (await import("./screens/attendance-report.js")).attendanceReportScreen,
   grading: async () => (await import("./screens/grading.js")).gradingScreen,
   medals: async () => (await import("./screens/medals.js")).medalsScreen,
   people: async () => (await import("./screens/people.js")).peopleScreen,
@@ -67,6 +70,28 @@ window.__nfShowError = (message, file, line) => {
 };
 
 /* ------------------------------------------------------------------ */
+/* The logo                                                            */
+/*                                                                     */
+/* The gold mark rises in, then a shimmer sweeps across it. The shine  */
+/* is masked to the shape of the logo in styles.css, so the light      */
+/* touches only the letters and never the panel behind them.          */
+/* ------------------------------------------------------------------ */
+
+function brandMark({ withSeal = false } = {}) {
+  return el(
+    "div",
+    {},
+    el(
+      "div",
+      { class: "logo-wrap" },
+      el("img", { class: "logo", src: "logo.png", alt: "NipponFit — fitness, karate, wellness", width: "300", height: "197" }),
+      el("span", { class: "logo-shine", "aria-hidden": "true" })
+    ),
+    withSeal ? el("img", { class: "seal", src: "seal.png", alt: "Nippon Karate Club", width: "160", height: "182" }) : null
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Landing                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -81,8 +106,7 @@ function landing() {
       el(
         "div",
         { class: "panel-body" },
-        el("div", { class: "brand-word" }, "NIPPONFIT"),
-        el("div", { class: "brand-sub" }, "Fitness | Karate | Wellness"),
+        brandMark({ withSeal: true }),
         el("div", { class: "eyebrow" }, "Dojo Manager"),
         el("h1", { class: "headline" }, "One place for the whole dojo"),
         button("Sign in", () => show(login()), "wide"),
@@ -141,7 +165,7 @@ function login() {
       el(
         "div",
         { class: "panel-body" },
-        el("div", { class: "brand-word" }, "NIPPONFIT"),
+        brandMark(),
         el("div", { class: "eyebrow" }, "Sign in"),
         form,
         el(
