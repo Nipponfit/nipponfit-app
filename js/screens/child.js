@@ -34,7 +34,12 @@ async function load() {
 }
 
 function render(data) {
-  const { students, notices } = data;
+  const { notices } = data;
+
+  /* A child who has left keeps all their history in the database, but
+     their parent should not still be shown them. */
+  const students = data.students.filter((s) => s.active !== false);
+  data = { ...data, students };
 
   if (students.length === 0) {
     return card(
@@ -109,13 +114,25 @@ function childCard(student, { ref, attendance, history, medals, addons, students
         ),
         stat(
           "Status",
-          el("span", { class: `pill ${student.fee_state}` }, student.fee_state),
-          student.fee_due_on ? "due " + shortDate(student.fee_due_on) : null
+          student.on_break
+            ? el("span", { class: "pill due" }, "on a break")
+            : el("span", { class: `pill ${student.fee_state}` }, student.fee_state),
+          student.on_break
+            ? "not billed"
+            : student.fee_due_on ? "due " + shortDate(student.fee_due_on) : null
         )
       )
     ),
 
-    feeCard(fee, student),
+    student.on_break
+      ? card(
+          "On a break",
+          null,
+          el("p", { style: "margin:0" },
+             `${student.full_name} is marked as taking a break, so there is nothing to pay for now. ` +
+             "Call the dojo when you would like to start again.")
+        )
+      : feeCard(fee, student),
     gradingCard(student, belt, next, rate),
 
     myHistory.length > 0 &&
@@ -184,7 +201,7 @@ function feeCard(fee, student) {
 }
 
 function gradingCard(student, belt, next, rate) {
-  if (!next) return null;
+  if (!next || student.on_break) return null;
 
   const fee = Number(next.grading_fee) || 0;
 
