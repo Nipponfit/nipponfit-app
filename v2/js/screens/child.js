@@ -10,7 +10,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { reference, feeFor, beltFor } from "../reference.js";
+import { reference, feeFor, beltFor, siblingsOf } from "../reference.js";
 import { gradingFormUrl, gradingFeeUpiLink } from "../jotform.js";
 import { el, card, table, stat, money, shortDate, button, section, empty, errorBox } from "../ui.js";
 
@@ -76,12 +76,13 @@ function render(data) {
   return host;
 }
 
-function childCard(student, { ref, attendance, history, medals, addons }) {
+function childCard(student, { ref, attendance, history, medals, addons, students }) {
   const { belt, next } = beltFor(student, ref);
   const dojo = ref.dojoById[student.dojo_id];
 
   const myAddons = addons.filter((a) => a.student_id === student.id).map((a) => a.plan_id);
-  const fee = feeFor(student, ref, myAddons);
+  const siblings = siblingsOf(student, students);
+  const fee = feeFor(student, ref, myAddons, { siblings });
 
   const mine = attendance.filter((a) => a.student_id === student.id);
   const present = mine.filter((a) => a.present).length;
@@ -151,7 +152,15 @@ function childCard(student, { ref, attendance, history, medals, addons }) {
 }
 
 function feeCard(fee, student) {
-  if (!fee.ok) return card("Fees", null, empty("No fee plan is set for this student yet. Please call the dojo."));
+  if (!fee.ok && !fee.isOverride) {
+    return card("Fees", null, empty("No fee plan is set for this student yet. Please call the dojo."));
+  }
+
+  const rows = [...fee.lines];
+  if (fee.siblingDiscount) rows.push({ label: "Brother or sister discount", amount: -fee.siblingDiscount });
+  if (fee.discount) rows.push({ label: "Discount from the dojo", amount: -fee.discount });
+  if (fee.gst) rows.push({ label: "GST at 18%", amount: fee.gst });
+  rows.push({ label: "Total", amount: fee.total });
 
   return card(
     "Fees",
@@ -161,18 +170,15 @@ function feeCard(fee, student) {
         { key: "label", label: "Item" },
         { key: "amount", label: "Amount", align: "num", format: money },
       ],
-      [
-        ...fee.lines,
-        fee.gst ? { label: "GST at 18%", amount: fee.gst } : null,
-        { label: "Total", amount: fee.total },
-      ].filter(Boolean)
+      rows
     ),
+    fee.siblingDiscount
+      ? el("p", { class: "muted", style: "margin-top:10px" },
+           "\u20B91,000 is taken off because more than one child from your family trains with us.")
+      : null,
     student.fee_state !== "paid"
-      ? el(
-          "p",
-          { class: "muted", style: "margin-top:10px" },
-          "Please pay at the dojo or by UPI. The dojo marks it paid once received."
-        )
+      ? el("p", { class: "muted", style: "margin-top:6px" },
+           "Please pay at the dojo or by UPI. The dojo marks it paid once received.")
       : null
   );
 }
@@ -180,50 +186,75 @@ function feeCard(fee, student) {
 function gradingCard(student, belt, next, rate) {
   if (!next) return null;
 
-  const eligible = student.grading_eligible;
-  const problem = el("div", {});
+  const fee = Number(next.grading_fee) || 0;
 
-  /* The form opens already filled in: name, father's name, date of
-     birth, mobile, ID card number, current belt, the belt being graded
-     into, and the fee. The parent checks it and submits. */
-  const openForm = el(
-    "a",
-    { class: "btn wide", href: gradingFormUrl(student, belt, next), target: "_blank", rel: "noopener" },
-    "Open the grading form — already filled in"
-  );
+  /* Not yet put forward — say why, and nothing else. */
+  if (!student.grading_eligible) {
+    return card(
+      "Grading",
+      `Next belt: ${next.name} (${next.kyu})`,
+      el(
+        "p",
+        { class: "muted", style: "margin:0" },
+        rate !== null && rate < 75
+          ? `Attendance is ${rate}%. Grading opens at 75%, once the instructor puts your child forward.`
+          : "Your child has not been put forward for grading yet. The instructor decides when they are ready."
+      )
+    );
+  }
 
-  const upiLink = gradingFeeUpiLink(student, next);
-  const payFee = upiLink
-    ? el("a", { class: "btn wide quiet", href: upiLink, style: "margin-top:8px" },
-         `Pay the grading fee — ${money(next.grading_fee)}`)
-    : null;
+  /* Put forward — two steps, each with one thing to do. */
+  const formDone = student.grading_form_done;
+  const feePaid = student.grading_fee_paid;
+
+  const step = (n, title, done, ...body) =>
+    el(
+      "div",
+      { class: `step${done ? " done" : ""}` },
+      el("div", { class: "step-mark" }, done ? "\u2713" : String(n)),
+      el("div", { class: "step-body" }, el("div", { class: "step-title" }, title), ...body)
+    );
 
   return card(
     "Grading",
-    `Next belt: ${next.name} (${next.kyu})${next.grading_fee ? " · fee " + money(next.grading_fee) : ""}`,
-    eligible
-      ? el(
-          "div",
-          {},
-          el(
-            "p",
-            {},
-            student.grading_form_done
-              ? "Your form has been received. The dojo will confirm the grading date."
-              : "Your child has been put forward for grading. Please fill in the form."
-          ),
-          !student.grading_form_done ? openForm : null,
-          student.grading_fee_paid
-            ? el("p", { class: "muted" }, "Grading fee received. Thank you.")
-            : payFee
-        )
-      : el(
-          "p",
-          { class: "muted" },
-          rate !== null && rate < 75
-            ? `Attendance is ${rate}%. Grading opens at 75%, once the instructor puts your child forward.`
-            : "Your child has not been put forward for grading yet. The instructor decides when they are ready."
-        ),
-    problem
+    `Being graded to ${next.name} (${next.kyu})`,
+    el(
+      "div",
+      { class: "steps" },
+
+      step(
+        1,
+        formDone ? "Form received" : "Fill in the grading form",
+        formDone,
+        formDone
+          ? el("p", { class: "muted" }, "The dojo will confirm the grading date.")
+          : el(
+              "div",
+              {},
+              el("p", { class: "muted" }, "It opens already filled in. Check the details and submit."),
+              el(
+                "a",
+                { class: "btn small", href: gradingFormUrl(student, belt, next), target: "_blank", rel: "noopener" },
+                "Open the form"
+              )
+            )
+      ),
+
+      step(
+        2,
+        feePaid ? "Grading fee paid" : `Pay the grading fee, ${money(fee)}`,
+        feePaid,
+        feePaid
+          ? el("p", { class: "muted" }, "Thank you \u2014 nothing more to do.")
+          : el(
+              "div",
+              {},
+              el("p", { class: "muted" }, "Pay by UPI, or hand it in at the dojo."),
+              gradingFeeUpiLink(student, next)
+                ? el("a", { class: "btn small", href: gradingFeeUpiLink(student, next) }, `Pay ${money(fee)} by UPI`)
+                : el("p", { class: "muted" }, "Please pay at the dojo.")
+            )
+      )
+    )
   );
 }

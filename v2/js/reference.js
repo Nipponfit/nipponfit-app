@@ -42,38 +42,87 @@ export const forget = () => { cache = null; };
 /* Working out what a student owes                                     */
 /* ------------------------------------------------------------------ */
 
-/* Base plan plus any add-on such as Elite squad, plus GST at Dravid
-   only. Mirrors amount_due() in the database so both agree. */
-export function feeFor(student, ref, addonPlanIds = []) {
+/* How many children this family has training. Brothers and sisters are
+   recognised by sharing a parent mobile, which is the one thing every
+   family has filled in. Mirrors sibling_count() in the database. */
+export function siblingsOf(student, allStudents) {
+  const mine = [student.parent_phone, student.parent2_phone].filter(Boolean);
+  if (mine.length === 0) return 1;
+
+  const count = allStudents.filter(
+    (s) =>
+      s.active !== false &&
+      (mine.includes(s.parent_phone) || mine.includes(s.parent2_phone))
+  ).length;
+
+  return Math.max(count, 1);
+}
+
+/* What a student pays.
+
+   base plan + any add-on
+     less Rs 1,000 if a brother or sister trains here too
+     less anything the dojo has taken off by hand
+     plus GST, at Dravid only
+   ...unless an exact fee has been set, which replaces the lot.
+
+   This mirrors amount_due() in the database line for line, including
+   where the rounding happens, so the app and the fee reminders can
+   never disagree about what someone owes. */
+export function feeFor(student, ref, addonPlanIds = [], { siblings = 1 } = {}) {
   const dojo = ref.dojoById[student.dojo_id];
   const plan = ref.planById[student.plan_id];
+  const gstApplies = Boolean(dojo?.gst_applies);
+
+  if (student.fee_override !== null && student.fee_override !== undefined) {
+    const total = Math.round(Number(student.fee_override));
+    return {
+      ok: true,
+      lines: [{ label: "Fee set by the dojo", amount: total }],
+      subtotal: total,
+      gst: 0,
+      siblingDiscount: 0,
+      discount: 0,
+      total,
+      cycle: plan?.cycle || "quarter",
+      label: plan ? plan.label : "Fee set by the dojo",
+      gstApplies,
+      isOverride: true,
+    };
+  }
 
   const lines = [];
-  let subtotal = 0;
+  let base = 0;
 
   if (plan) {
     lines.push({ label: plan.label, amount: Number(plan.fee) });
-    subtotal += Number(plan.fee);
+    base += Number(plan.fee);
   }
 
   for (const id of addonPlanIds) {
     const addon = ref.planById[id];
     if (!addon) continue;
     lines.push({ label: addon.label + " (add-on)", amount: Number(addon.fee) });
-    subtotal += Number(addon.fee);
+    base += Number(addon.fee);
   }
 
-  const gst = dojo?.gst_applies ? Math.round(subtotal * 0.18) : 0;
+  const siblingDiscount = siblings >= 2 ? 1000 : 0;
+  const discount = Number(student.fee_discount) || 0;
+  const subtotal = Math.max(base - siblingDiscount - discount, 0);
+  const total = Math.round(subtotal * (gstApplies ? 1.18 : 1));
 
   return {
     ok: Boolean(plan),
     lines,
     subtotal,
-    gst,
-    total: subtotal + gst,
+    gst: total - subtotal,
+    siblingDiscount,
+    discount,
+    total,
     cycle: plan?.cycle || "quarter",
     label: plan ? plan.label : "No plan set",
-    gstApplies: Boolean(dojo?.gst_applies),
+    gstApplies,
+    isOverride: false,
   };
 }
 

@@ -7,7 +7,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { reference, feeFor, beltFor } from "../reference.js";
+import { reference, feeFor, beltFor, siblingsOf } from "../reference.js";
 import { el, card, table, input, button, money, shortDate, section, toast, errorBox, empty, phoneDigits } from "../ui.js";
 
 export async function studentsScreen({ refresh }) {
@@ -50,7 +50,7 @@ function render({ students, ref, addons }, refresh) {
             key: "full_name",
             label: "Student",
             format: (name, row) =>
-              el("a", { href: "#", onClick: (e) => { e.preventDefault(); detail.replaceChildren(studentPanel(row, ref, addons, refresh)); detail.scrollIntoView({ behavior: "smooth", block: "start" }); } }, name),
+              el("a", { href: "#", onClick: (e) => { e.preventDefault(); detail.replaceChildren(studentPanel(row, ref, addons, active, refresh)); detail.scrollIntoView({ behavior: "smooth", block: "start" }); } }, name),
           },
           { key: "id_card", label: "ID card" },
           { key: "dojo_id", label: "Dojo", format: (id) => ref.dojoById[id]?.name },
@@ -69,10 +69,16 @@ function render({ students, ref, addons }, refresh) {
   return el("div", {}, detail, card("Students", null, el("div", { class: "field" }, search), results));
 }
 
-function studentPanel(student, ref, addons, refresh) {
+function studentPanel(student, ref, addons, allStudents, refresh) {
   const { belt, next } = beltFor(student, ref);
   const dojo = ref.dojoById[student.dojo_id];
-  const fee = feeFor(student, ref, addons.filter((a) => a.student_id === student.id).map((a) => a.plan_id));
+  const siblings = siblingsOf(student, allStudents);
+  const fee = feeFor(
+    student,
+    ref,
+    addons.filter((a) => a.student_id === student.id).map((a) => a.plan_id),
+    { siblings }
+  );
   const problem = el("div", {});
 
   const facts = [
@@ -81,6 +87,9 @@ function studentPanel(student, ref, addons, refresh) {
     ["Belt", belt ? `${belt.name} (${belt.kyu})` : "Not set"],
     ["Plan", fee.label],
     ["Fee", `${money(fee.total)} ${fee.cycle === "month" ? "monthly" : "quarterly"}${fee.gstApplies ? " incl. GST" : ""}`],
+    siblings >= 2 ? ["Family", `${siblings} children training \u2014 \u20B91,000 off each`] : null,
+    fee.discount ? ["Extra discount", money(fee.discount) + " off"] : null,
+    fee.isOverride ? ["Fee set by hand", money(fee.total)] : null,
     ["Guardian", student.guardian_name],
     ["Parent mobile", phoneDigits(student.parent_phone)],
     ["Second mobile", phoneDigits(student.parent2_phone)],
@@ -158,8 +167,55 @@ function studentPanel(student, ref, addons, refresh) {
     ),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Fees"),
     feeButtons,
+    el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Change this student's fee"),
+    feeEditor(student, fee, change),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Grading"),
     gradingBlock,
     problem
+  );
+}
+
+
+/* Let the founder or admin change one student's fee: either take money
+   off their normal fee, or set an exact amount that replaces it.
+   The sibling discount is worked out automatically and is not touched
+   by either of these. */
+function feeEditor(student, fee, change) {
+  const discount = input({
+    type: "number", inputmode: "numeric", min: "0",
+    value: student.fee_discount || "", placeholder: "0",
+  });
+  const exact = input({
+    type: "number", inputmode: "numeric", min: "0",
+    value: student.fee_override ?? "", placeholder: "leave empty for normal pricing",
+  });
+
+  const save = button("Save this fee", async () => {
+    save.disabled = true;
+    save.textContent = "Saving…";
+    await change(
+      {
+        fee_discount: Number(discount.value) || 0,
+        fee_override: exact.value === "" ? null : Number(exact.value),
+      },
+      `${student.full_name}'s fee updated.`
+    );
+    save.disabled = false;
+    save.textContent = "Save this fee";
+  }, "small");
+
+  return el(
+    "div",
+    { style: "margin-top:8px" },
+    el("p", { class: "muted" },
+       "They currently pay " + money(fee.total) + " " +
+       (fee.cycle === "month" ? "a month" : "a quarter") + "."),
+    el("label", { class: "field" },
+       el("span", { class: "field-label" }, "Take off (\u20B9)"), discount),
+    el("label", { class: "field" },
+       el("span", { class: "field-label" }, "Or charge exactly (\u20B9)"), exact),
+    el("p", { class: "muted", style: "margin:-6px 0 10px" },
+       "An exact amount replaces the plan, every discount and GST. Leave it empty unless you mean it."),
+    save
   );
 }

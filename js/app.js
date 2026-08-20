@@ -126,9 +126,30 @@ function landing() {
 /* Sign in                                                             */
 /* ------------------------------------------------------------------ */
 
-function login() {
+/* If the parent arrived from the website's Parent Login panel, the mobile
+   number comes with them as ?m=9945616005. Read it once, then wipe it out
+   of the address bar so it is not left sitting in browser history. */
+function handedOverNumber() {
+  const found = new URLSearchParams(location.search).get("m");
+  if (!found) return "";
+
+  const digits = found.replace(/\D/g, "").slice(-10);
+
+  history.replaceState(null, "", location.pathname);
+
+  return digits.length === 10 ? digits : "";
+}
+
+function login(prefill = "") {
   const contact = input({ name: "contact", inputmode: "tel", autocomplete: "username", autocapitalize: "off", spellcheck: "false" });
   const password = input({ name: "password", type: "password", autocomplete: "current-password" });
+
+  if (prefill) {
+    contact.value = prefill;
+    /* Number already filled, so put the cursor straight in the password
+       box. Runs after this screen has been put on the page. */
+    setTimeout(() => password.focus(), 0);
+  }
   const problem = el("div", {});
   const submit = button("Sign in", trySignIn, "wide");
 
@@ -246,7 +267,12 @@ async function boot() {
     return;
   }
 
-  if (!db.signedIn()) { show(landing()); return; }
+  if (!db.signedIn()) {
+    /* Straight to sign-in, number filled, when sent here by the website. */
+    const handed = handedOverNumber();
+    show(handed ? login(handed) : landing());
+    return;
+  }
 
   show(el("div", { class: "screen-centre" }, spinner("Opening your dojo…")));
 

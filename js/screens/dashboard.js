@@ -6,7 +6,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { reference, feeFor } from "../reference.js";
+import { reference, feeFor, siblingsOf } from "../reference.js";
 import { el, card, table, stat, money, section, empty } from "../ui.js";
 
 export async function dashboardScreen() {
@@ -34,7 +34,12 @@ function render({ students, ref, addons, attendance, history, fees, payouts }) {
   const perDojo = ref.dojos.map((dojo) => {
     const mine = active.filter((s) => s.dojo_id === dojo.id);
     const monthly = mine.reduce((sum, s) => {
-      const f = feeFor(s, ref, addons.filter((a) => a.student_id === s.id).map((a) => a.plan_id));
+      const f = feeFor(
+        s,
+        ref,
+        addons.filter((a) => a.student_id === s.id).map((a) => a.plan_id),
+        { siblings: siblingsOf(s, active) }
+      );
       return sum + (f.cycle === "month" ? f.total : f.total / 3);
     }, 0);
     return { dojo: dojo.name, students: mine.length, monthly: Math.round(monthly) };

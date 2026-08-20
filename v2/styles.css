@@ -394,3 +394,32 @@ html, body {
     transform: none;
   }
 }
+
+/* ===================================================================
+   Numbered steps - used for grading, where a parent has two things to
+   do in order and needs to see at a glance which is done.
+   =================================================================== */
+
+.steps { display: flex; flex-direction: column; gap: 14px; }
+
+.step { display: flex; gap: 12px; align-items: flex-start; }
+
+.step-mark {
+  flex: 0 0 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--maroon);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.step.done .step-mark { background: var(--green); }
+
+.step-body { flex: 1; min-width: 0; }
+.step-title { font-weight: 600; margin-bottom: 3px; }
+.step-body p { margin: 0 0 9px; }
+.step.done .step-title { color: var(--ink-soft); }

@@ -35,7 +35,11 @@ export const clear = (node) => {
 /* Formatting — Indian conventions throughout                          */
 /* ------------------------------------------------------------------ */
 
-export const money = (n) => "₹" + Math.round(Number(n) || 0).toLocaleString("en-IN");
+export const money = (n) => {
+  const v = Math.round(Number(n) || 0);
+  // A discount reads better as -₹1,000 than ₹-1,000
+  return (v < 0 ? "-₹" : "₹") + Math.abs(v).toLocaleString("en-IN");
+};
 
 export const shortDate = (d) =>
   d
