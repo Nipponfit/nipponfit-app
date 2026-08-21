@@ -20,13 +20,13 @@ const TABS = {
   instructor: [["mark", "Mark attendance"], ["pay", "My sessions & pay"], ["account", "Account"]],
   admin: [
     ["students", "Students"], ["mark", "Attendance"], ["report", "Attendance report"],
-    ["grading", "Grading"],
+    ["timetable", "Timetable"], ["grading", "Grading"],
     ["medals", "Achievements"], ["fees", "Fees due"], ["payouts", "Instructor pay"],
     ["people", "People"], ["notices", "Notices"], ["account", "Account"],
   ],
   founder: [
     ["board", "Dashboard"], ["students", "Students"], ["mark", "Attendance"],
-    ["report", "Attendance report"],
+    ["report", "Attendance report"], ["timetable", "Timetable"],
     ["grading", "Grading"], ["medals", "Achievements"], ["fees", "Fees due"],
     ["payouts", "Instructor pay"], ["people", "People"], ["notices", "Notices"],
     ["account", "Account"],
@@ -44,6 +44,7 @@ const SCREENS = {
   students: async () => (await import("./screens/students.js")).studentsScreen,
   board: async () => (await import("./screens/dashboard.js")).dashboardScreen,
   report: async () => (await import("./screens/attendance-report.js")).attendanceReportScreen,
+  timetable: async () => (await import("./screens/timetable.js")).timetableScreen,
   grading: async () => (await import("./screens/grading.js")).gradingScreen,
   medals: async () => (await import("./screens/medals.js")).medalsScreen,
   people: async () => (await import("./screens/people.js")).peopleScreen,

@@ -209,6 +209,13 @@ export function upsert(table, rows, onConflict) {
   });
 }
 
+/* Delete rows, e.g. remove("session_holidays", { id }) */
+export function remove(table, match) {
+  const q = new URLSearchParams();
+  for (const [col, val] of Object.entries(match)) q.set(col, `eq.${val}`);
+  return request(`/rest/v1/${table}?${q}`, { method: "DELETE" });
+}
+
 /* Call a database function, e.g. rpc("change_my_password", {...}) */
 export function rpc(name, args = {}, opts = {}) {
   return request(`/rest/v1/rpc/${name}`, { method: "POST", body: JSON.stringify(args) }, opts);

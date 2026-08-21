@@ -423,3 +423,34 @@ html, body {
 .step-title { font-weight: 600; margin-bottom: 3px; }
 .step-body p { margin: 0 0 9px; }
 .step.done .step-title { color: var(--ink-soft); }
+
+/* ===================================================================
+   Attendance ticks
+   ------------------------------------------------------------------
+   A big tick target, because this is used standing up in a dojo with
+   one hand. The whole row is the label, so tapping anywhere toggles.
+   =================================================================== */
+
+.tick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  user-select: none;
+}
+.tick-row:last-of-type { border-bottom: 0; }
+.tick-row:active { background: var(--cream-dim); }
+
+.tick {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+.tick-body { display: flex; flex-direction: column; min-width: 0; }
+.tick-name { font-weight: 600; }
+.tick-row:has(.tick:checked) .tick-name { color: var(--green); }
