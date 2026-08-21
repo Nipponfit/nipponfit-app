@@ -6,29 +6,35 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { el, card, table, stat, money, button, section, toast, errorBox, empty, phoneDigits } from "../ui.js";
+import { el, card, table, stat, money, button, input, section, toast, errorBox, empty, phoneDigits } from "../ui.js";
 
 export async function payoutsScreen({ refresh }) {
   return el("div", {}, section(load, (data) => render(data, refresh), { label: "Adding up instructor pay…" }));
 }
 
 async function load() {
-  const [rows, rates, instructors] = await Promise.all([
+  const [rows, rates, instructors, dojos] = await Promise.all([
     db.select("staff_payouts"),
     db.select("instructor_rates"),
     db.select("profiles", { columns: "id, full_name, phone, rank", filter: { role: "eq.instructor" } }),
+    db.select("dojos", { order: "name" }),
   ]);
-  return { rows, rates, instructors };
+  return { rows, rates, instructors, dojos };
 }
 
-function render({ rows, instructors }, refresh) {
+function render({ rows, instructors, dojos }, refresh) {
   if (rows.length === 0) {
-    return card(
-      "Instructor pay",
-      null,
-      empty(
-        "Nothing recorded yet. A class is counted when an instructor marks attendance for it, so this fills in as they use the app."
-      )
+    return el(
+      "div",
+      {},
+      card(
+        "Instructor pay",
+        null,
+        empty(
+          "Nothing recorded yet. A class is counted when an instructor marks attendance for it, so this fills in as they use the app."
+        )
+      ),
+      recordClass(instructors, dojos, refresh)
     );
   }
 
@@ -60,6 +66,8 @@ function render({ rows, instructors }, refresh) {
         stat("Still to pay", money(owed))
       )
     ),
+
+    recordClass(instructors, dojos, refresh),
 
     ...[...groups.values()].map((g) => monthCard(g, refresh)),
 
@@ -118,5 +126,50 @@ function monthCard(group, refresh) {
     ),
     problem,
     group.owed > 0 ? settle : null
+  );
+}
+
+
+/* Record a class an instructor took, dojo by dojo and date by date.
+   Normally this happens by itself when they mark attendance — this is
+   for the times it did not, or for a correction. The pay is worked out
+   from their rate at that dojo. */
+function recordClass(instructors, dojos, refresh) {
+  if (instructors.length === 0 || dojos.length === 0) return null;
+
+  const who = el("select", { class: "input" },
+    ...instructors.map((i) => el("option", { value: phoneDigits(i.phone) }, i.full_name)));
+  const where = el("select", { class: "input" },
+    ...dojos.filter((d) => d.active !== false).map((d) => el("option", { value: d.name }, d.name)));
+  const when = input({ type: "date", value: new Date().toISOString().slice(0, 10) });
+  const problem = el("div", {});
+
+  const go = button("Record this class", async () => {
+    problem.replaceChildren();
+    go.disabled = true;
+    go.textContent = "Recording…";
+    try {
+      const message = await db.rpc("record_taught_session", {
+        p_instructor_phone: who.value,
+        p_dojo_name: where.value,
+        p_on_date: when.value,
+      });
+      toast(typeof message === "string" ? message : "Recorded.");
+      refresh();
+    } catch (err) {
+      problem.append(errorBox(err));
+    }
+    go.disabled = false;
+    go.textContent = "Record this class";
+  }, "wide");
+
+  return card(
+    "Record a class an instructor taught",
+    "Only needed when a class was not marked in the app. The pay comes from their rate at that dojo.",
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Instructor"), who),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Dojo"), where),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Date"), when),
+    problem,
+    go
   );
 }

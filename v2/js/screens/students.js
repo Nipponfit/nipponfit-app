@@ -138,7 +138,11 @@ function studentPanel(student, ref, addons, allStudents, refresh) {
     ["Blood group", student.blood_group],
     ["Joined", student.joined_on ? shortDate(student.joined_on) : null],
     ["Fee due", student.fee_due_on ? shortDate(student.fee_due_on) : null],
-  ].filter(([, v]) => v);
+    student.grading_eligible && student.grading_date
+      ? ["Grading exam", shortDate(student.grading_date)] : null,
+  // Some rows above are deliberately null (sibling, discount, exact fee).
+  // Check the row exists BEFORE unpacking it, or null throws.
+  ].filter((row) => row && row[1]);
 
   async function change(changes, message) {
     problem.replaceChildren();
@@ -172,6 +176,7 @@ function studentPanel(student, ref, addons, allStudents, refresh) {
           ? el(
               "div",
               {},
+              gradingDateEditor(student, change),
               el(
                 "p",
                 {},
@@ -190,11 +195,7 @@ function studentPanel(student, ref, addons, allStudents, refresh) {
                 button("Withdraw from grading", () => change({ grading_eligible: false, grading_form_done: false, grading_fee_paid: false }, "Withdrawn."), "small quiet")
               )
             )
-          : button(
-              "Put forward for grading",
-              () => change({ grading_eligible: true }, `${student.full_name} put forward. The parent can now open the form.`),
-              "small"
-            )
+          : putForward(student, change)
       )
     : el("p", { class: "muted", style: "margin-top:14px" }, "Already at the top of the kyu ladder. Dan grading is not set up yet.");
 
@@ -316,5 +317,51 @@ function statusEditor(student, change) {
     el("p", { class: "muted", style: "margin-top:10px" },
        "A student on a break keeps their place and their history, but is not billed and not chased for fees. " +
        "A student who has left disappears from the roster; nothing is deleted, and you can bring them back here at any time.")
+  );
+}
+
+
+/* Putting a child forward, with the date of the exam. The parent sees
+   the date, so they know what they are filling the form in for. */
+function putForward(student, change) {
+  const when = input({ type: "date" });
+  const go = button("Put forward for grading", async () => {
+    go.disabled = true;
+    go.textContent = "Saving…";
+    await change(
+      { grading_eligible: true, grading_date: when.value || null },
+      `${student.full_name} put forward. The parent can now open the form.`
+    );
+    go.disabled = false;
+    go.textContent = "Put forward for grading";
+  }, "small");
+
+  return el(
+    "div",
+    {},
+    el("label", { class: "field" },
+       el("span", { class: "field-label" }, "Date of the grading exam (optional)"), when),
+    go
+  );
+}
+
+/* Changing the exam date after someone is already put forward. */
+function gradingDateEditor(student, change) {
+  const when = input({ type: "date", value: student.grading_date ? String(student.grading_date).slice(0, 10) : "" });
+  const save = button("Save exam date", async () => {
+    save.disabled = true;
+    save.textContent = "Saving…";
+    await change({ grading_date: when.value || null },
+                 when.value ? "Grading exam date saved." : "Grading exam date cleared.");
+    save.disabled = false;
+    save.textContent = "Save exam date";
+  }, "small quiet");
+
+  return el(
+    "div",
+    { style: "margin-bottom:10px" },
+    el("label", { class: "field" },
+       el("span", { class: "field-label" }, "Date of the grading exam"), when),
+    save
   );
 }

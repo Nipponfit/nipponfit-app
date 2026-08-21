@@ -234,7 +234,8 @@ function gradingCard(student, belt, next, rate) {
 
   return card(
     "Grading",
-    `Being graded to ${next.name} (${next.kyu})`,
+    `Being graded to ${next.name} (${next.kyu})` +
+      (student.grading_date ? ` \u00B7 exam on ${shortDate(student.grading_date)}` : ""),
     el(
       "div",
       { class: "steps" },

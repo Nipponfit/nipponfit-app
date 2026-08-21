@@ -47,6 +47,12 @@ function render({ students, ref, history }, refresh) {
           { key: "to_belt_id", label: "Promoted to", format: (id) => ref.beltById[id]?.name || id },
           { key: "result", label: "Result" },
           { key: "fee_paid", label: "Fee", align: "num", format: money },
+          {
+            key: "id",
+            label: "",
+            format: (_id, row) =>
+              button("Undo", () => undoGrading(row, students, ref, refresh), "small quiet"),
+          },
         ],
         history,
         { emptyMessage: "No gradings recorded yet." }
@@ -132,4 +138,31 @@ function candidate(student, ref, refresh) {
     ),
     problem
   );
+}
+
+
+/* Remove a grading entered by mistake. The student drops back to the
+   belt their remaining history supports — nothing else is touched. */
+async function undoGrading(row, students, ref, refresh) {
+  const student = students.find((s) => s.id === row.student_id);
+  const belt = ref.beltById[row.to_belt_id];
+  if (!student || !belt) return;
+
+  const ok = confirm(
+    `Remove ${student.full_name}'s promotion to ${belt.name}?\n\n` +
+      "They will go back to the belt their remaining history supports. " +
+      "Nothing else changes."
+  );
+  if (!ok) return;
+
+  try {
+    const message = await db.rpc("undo_grading", {
+      p_id_card: student.id_card,
+      p_belt_name: belt.name,
+    });
+    toast(typeof message === "string" ? message : "Removed.");
+    refresh();
+  } catch (err) {
+    alert(err.message || String(err));
+  }
 }
