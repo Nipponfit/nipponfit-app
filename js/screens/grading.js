@@ -141,25 +141,26 @@ function candidate(student, ref, refresh) {
 }
 
 
-/* Remove a grading entered by mistake. The student drops back to the
-   belt their remaining history supports — nothing else is touched. */
+/* Remove a grading entered by mistake.
+
+   This works on the exact line you tapped, by its own id. The first
+   version matched on student and belt name, which would have deleted
+   BOTH of Poorvi's Brown IV entries instead of only the wrong one. */
 async function undoGrading(row, students, ref, refresh) {
   const student = students.find((s) => s.id === row.student_id);
   const belt = ref.beltById[row.to_belt_id];
   if (!student || !belt) return;
 
   const ok = confirm(
-    `Remove ${student.full_name}'s promotion to ${belt.name}?\n\n` +
-      "They will go back to the belt their remaining history supports. " +
-      "Nothing else changes."
+    "Remove " + student.full_name + "'s promotion to " + belt.name +
+      " on " + shortDate(row.graded_on) + "?\n\n" +
+      "Only this one line is removed. They go back to the belt their " +
+      "remaining history supports."
   );
   if (!ok) return;
 
   try {
-    const message = await db.rpc("undo_grading", {
-      p_id_card: student.id_card,
-      p_belt_name: belt.name,
-    });
+    const message = await db.rpc("undo_grading_by_id", { p_id: row.id });
     toast(typeof message === "string" ? message : "Removed.");
     refresh();
   } catch (err) {
