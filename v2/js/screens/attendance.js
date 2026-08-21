@@ -15,7 +15,7 @@
 
 import * as db from "../db.js";
 import { reference } from "../reference.js";
-import { el, card, button, section, toast, errorBox, empty, today, shortDate } from "../ui.js";
+import { el, card, button, fill, section, toast, errorBox, empty, today, shortDate } from "../ui.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -192,7 +192,8 @@ function render({ ref, roster, holidays, extras }, me) {
       );
     });
 
-    list.replaceChildren(
+    fill(
+      list,
       ...rows,
       notYet
         ? el("p", { class: "muted", style: "margin-top:10px" },

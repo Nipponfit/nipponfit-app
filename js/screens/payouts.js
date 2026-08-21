@@ -16,7 +16,12 @@ async function load() {
   const [rows, rates, instructors, dojos] = await Promise.all([
     db.select("staff_payouts"),
     db.select("instructor_rates"),
-    db.select("profiles", { columns: "id, full_name, phone, rank", filter: { role: "eq.instructor" } }),
+    // The founder teaches at Dravid, so she belongs in this list as
+    // much as any instructor. Admins do not teach, so they are left out.
+    db.select("profiles", {
+      columns: "id, full_name, phone, rank, role",
+      filter: { role: "in.(instructor,founder)" },
+    }),
     db.select("dojos", { order: "name" }),
   ]);
   return { rows, rates, instructors, dojos };
@@ -80,7 +85,7 @@ function render({ rows, instructors, dojos }, refresh) {
           { key: "phone", label: "Mobile", format: phoneDigits },
           { key: "rank", label: "Rank" },
         ],
-        instructors
+        instructors.filter((i) => i.role === "instructor")
       )
     )
   );
@@ -138,7 +143,9 @@ function recordClass(instructors, dojos, refresh) {
   if (instructors.length === 0 || dojos.length === 0) return null;
 
   const who = el("select", { class: "input" },
-    ...instructors.map((i) => el("option", { value: phoneDigits(i.phone) }, i.full_name)));
+    ...instructors.map((i) =>
+      el("option", { value: phoneDigits(i.phone) },
+         i.full_name + (i.role === "founder" ? " (you)" : ""))));
   const where = el("select", { class: "input" },
     ...dojos.filter((d) => d.active !== false).map((d) => el("option", { value: d.name }, d.name)));
   const when = input({ type: "date", value: new Date().toISOString().slice(0, 10) });

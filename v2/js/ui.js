@@ -26,6 +26,18 @@ export function el(tag, attrs = {}, ...children) {
   return node;
 }
 
+/* Replace a node's contents, ignoring anything null or false.
+
+   node.replaceChildren() turns a null into the literal text "null" on
+   screen. `el` already filters them, so mixing the two is an easy trap.
+   Use fill() and it cannot happen. */
+export function fill(node, ...children) {
+  node.replaceChildren(
+    ...children.flat().filter((c) => c !== null && c !== undefined && c !== false)
+  );
+  return node;
+}
+
 export const clear = (node) => {
   while (node.firstChild) node.removeChild(node.firstChild);
   return node;
