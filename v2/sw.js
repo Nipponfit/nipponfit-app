@@ -4,11 +4,11 @@
    Network first: you always get the newest version when there is a
    connection, and the last one that worked when there is not. */
 
-const CACHE = "nipponfit-v2-9";
+const CACHE = "nipponfit-v2-10";
 
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json",
-  "./js/app.js", "./js/db.js", "./js/ui.js", "./js/reference.js", "./js/jotform.js",
+  "./js/app.js", "./js/db.js", "./js/ui.js", "./js/reference.js", "./js/jotform.js", "./js/push.js",
   "./js/screens/account.js", "./js/screens/child.js", "./js/screens/attendance.js",
   "./js/screens/instructor-pay.js", "./js/screens/payouts.js", "./js/screens/fees.js",
   "./js/screens/students.js", "./js/screens/dashboard.js", "./js/screens/grading.js",

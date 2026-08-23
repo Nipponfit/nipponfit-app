@@ -5,10 +5,11 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { el, card, field, input, button, errorBox, toast, phoneDigits } from "../ui.js";
+import { pushSupport, currentSubscription, subscribe, unsubscribe } from "../push.js";
+import { el, card, field, input, button, fill, errorBox, toast, phoneDigits } from "../ui.js";
 
 export async function accountScreen({ me }) {
-  return el("div", {}, whoYouAre(me), changePassword(), yourEmail(me));
+  return el("div", {}, whoYouAre(me), reminders(me), changePassword(), yourEmail(me));
 }
 
 function whoYouAre(me) {
@@ -102,4 +103,84 @@ function yourEmail(me) {
     problem,
     save
   );
+}
+
+
+/* Reminders on this phone.
+
+   A fee reminder is raised on the 10th and shown in the app. This makes
+   the phone buzz as well, so a parent does not have to remember to look.
+   It costs nothing and involves no third party. */
+function reminders(me) {
+  const body = el("div", {}, el("p", { class: "muted" }, "Checking this phone\u2026"));
+
+  const support = pushSupport();
+
+  async function draw() {
+    if (!support.ok) {
+      body.replaceChildren(el("p", { class: "muted" }, support.why));
+      return;
+    }
+
+    const sub = await currentSubscription();
+    const problem = el("div", {});
+
+    const on = button("Send reminders to this phone", async () => {
+      problem.replaceChildren();
+      on.disabled = true;
+      on.textContent = "Asking\u2026";
+      try {
+        toast(await subscribe());
+        draw();
+      } catch (err) {
+        problem.append(errorBox(err));
+        on.disabled = false;
+        on.textContent = "Send reminders to this phone";
+      }
+    }, "wide");
+
+    const off = button("Stop reminders on this phone", async () => {
+      problem.replaceChildren();
+      off.disabled = true;
+      try {
+        toast(await unsubscribe());
+        draw();
+      } catch (err) {
+        problem.append(errorBox(err));
+      }
+      off.disabled = false;
+    }, "wide quiet");
+
+    const test = button("Send me a test now", async () => {
+      problem.replaceChildren();
+      test.disabled = true;
+      test.textContent = "Sending\u2026";
+      try {
+        const message = await db.rpc("send_test_notification");
+        toast(typeof message === "string" ? message : "Sent.");
+      } catch (err) {
+        problem.append(errorBox(err));
+      }
+      test.disabled = false;
+      test.textContent = "Send me a test now";
+    }, "small quiet");
+
+    fill(
+      body,
+      el("p", { style: "margin-top:0" },
+         sub
+           ? "This phone is set up. You will be told when a fee is due."
+           : "Turn this on and your phone will tell you when a fee is due, " +
+             "even when the app is closed."),
+      sub ? off : on,
+      (me.role === "founder" || me.role === "admin") && sub
+        ? el("div", { style: "margin-top:10px" }, test)
+        : null,
+      problem
+    );
+  }
+
+  draw();
+
+  return card("Reminders", "A fee reminder goes out on the 10th of each month.", body);
 }
