@@ -23,7 +23,7 @@ async function load() {
       filter: { role: "in.(instructor,founder)" },
     }),
     db.select("dojos", { order: "name" }),
-    db.select("taught_sessions", { order: "on_date.desc", limit: 1000 }),
+    db.selectAll("taught_sessions", { order: "on_date.desc" }),
   ]);
   return { rows, rates, instructors, dojos, taught };
 }

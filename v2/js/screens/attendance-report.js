@@ -24,7 +24,7 @@ export async function attendanceReportScreen() {
 
 async function load() {
   const [attendance, students, ref, addons] = await Promise.all([
-    db.select("attendance", { limit: 5000 }),
+    db.selectAll("attendance"),
     db.select("students", { order: "full_name" }),
     reference(),
     db.select("student_addons").catch(() => []),

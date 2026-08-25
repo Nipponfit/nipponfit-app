@@ -25,7 +25,7 @@ async function load() {
     db.select("students", { order: "full_name" }),
     reference(),
     db.select("my_notifications", { limit: 20 }),
-    db.select("attendance", { limit: 1000 }),
+    db.selectAll("attendance"),
     db.select("grading_history"),
     db.select("achievements"),
     db.select("student_addons"),

@@ -23,7 +23,7 @@ async function load() {
     db.select("students"),
     reference(),
     db.select("student_addons"),
-    db.select("attendance", { limit: 3000 }),
+    db.selectAll("attendance"),
     db.select("grading_history"),
     db.select("fees_due_now").catch(() => []),
     db.select("staff_payouts").catch(() => []),

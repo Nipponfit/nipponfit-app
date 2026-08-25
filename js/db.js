@@ -179,7 +179,34 @@ export function select(table, opts = {}) {
   if (opts.order) q.set("order", opts.order);
   if (opts.limit) q.set("limit", opts.limit);
 
-  return request(`/rest/v1/${table}?${q}`);
+  /* A range asks for one page. Supabase honours this even when it
+     refuses a large limit. */
+  const headers = opts.range
+    ? { Range: `${opts.range[0]}-${opts.range[1]}`, "Range-Unit": "items" }
+    : undefined;
+
+  return request(`/rest/v1/${table}?${q}`, headers ? { headers } : {});
+}
+
+/* Read EVERY row, however many there are.
+
+   Supabase caps a single request at about a thousand rows and says
+   nothing about it — you simply get a slice and no error. Asking for
+   limit: 5000 does not help. This fetches page after page until a short
+   page comes back, which is the only reliable way to know you have the
+   lot.
+
+   Use this wherever the answer depends on having all of something:
+   attendance especially, where a missing slice silently changes every
+   percentage on the screen. */
+export async function selectAll(table, opts = {}, pageSize = 1000) {
+  const all = [];
+  for (let from = 0; ; from += pageSize) {
+    const page = await select(table, { ...opts, range: [from, from + pageSize - 1] });
+    all.push(...page);
+    if (page.length < pageSize) return all;
+    if (all.length > 100000) return all;   // a stop, in case something is very wrong
+  }
 }
 
 export function insert(table, row) {
