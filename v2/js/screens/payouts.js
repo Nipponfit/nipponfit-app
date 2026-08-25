@@ -6,14 +6,14 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { el, card, table, stat, money, button, input, section, toast, errorBox, empty, phoneDigits } from "../ui.js";
+import { el, card, table, stat, money, button, input, fill, shortDate, section, toast, errorBox, empty, phoneDigits } from "../ui.js";
 
 export async function payoutsScreen({ refresh }) {
   return el("div", {}, section(load, (data) => render(data, refresh), { label: "Adding up instructor pay…" }));
 }
 
 async function load() {
-  const [rows, rates, instructors, dojos] = await Promise.all([
+  const [rows, rates, instructors, dojos, taught] = await Promise.all([
     db.select("staff_payouts"),
     db.select("instructor_rates"),
     // The founder teaches at Dravid, so she belongs in this list as
@@ -23,11 +23,12 @@ async function load() {
       filter: { role: "in.(instructor,founder)" },
     }),
     db.select("dojos", { order: "name" }),
+    db.select("taught_sessions", { order: "on_date.desc", limit: 1000 }),
   ]);
-  return { rows, rates, instructors, dojos };
+  return { rows, rates, instructors, dojos, taught };
 }
 
-function render({ rows, instructors, dojos }, refresh) {
+function render({ rows, instructors, dojos, taught }, refresh) {
   if (rows.length === 0) {
     return el(
       "div",
@@ -73,6 +74,8 @@ function render({ rows, instructors, dojos }, refresh) {
     ),
 
     recordClass(instructors, dojos, refresh),
+
+    everyClass(taught, instructors, dojos, refresh),
 
     ...[...groups.values()].map((g) => monthCard(g, refresh)),
 
@@ -178,5 +181,104 @@ function recordClass(instructors, dojos, refresh) {
     el("label", { class: "field" }, el("span", { class: "field-label" }, "Date"), when),
     problem,
     go
+  );
+}
+
+
+/* Every class recorded, date by date.
+
+   The totals above answer "what do I owe"; this answers "which classes
+   were those" — and lets a wrong one be removed. A class already paid
+   out cannot be removed, because the money has gone. */
+function everyClass(taught, instructors, dojos, refresh) {
+  if (!taught || taught.length === 0) return null;
+
+  const who = Object.fromEntries(instructors.map((p) => [p.id, p.full_name]));
+  const where = Object.fromEntries(dojos.map((d) => [d.id, d.name]));
+  const problem = el("div", {});
+
+  const pick = el("select", { class: "input" },
+    el("option", { value: "" }, "Everyone"),
+    ...instructors.map((p) => el("option", { value: p.id }, p.full_name)));
+
+  const body = el("div", {});
+
+  function draw() {
+    const shown = pick.value ? taught.filter((t) => t.instructor_id === pick.value) : taught;
+
+    const removeAll = pick.value
+      ? button(
+          `Remove all ${shown.filter((t) => !t.paid_out).length} unpaid classes for ${who[pick.value]}`,
+          async () => {
+            const unpaid = shown.filter((t) => !t.paid_out);
+            if (!unpaid.length) return;
+            if (!confirm(
+              `Remove ${unpaid.length} recorded classes for ${who[pick.value]}?\n\n` +
+              "Their attendance is not touched — only the pay lines. " +
+              "Classes already paid out are kept."
+            )) return;
+            problem.replaceChildren();
+            try {
+              for (const t of unpaid) await db.rpc("remove_taught_session", { p_id: t.id });
+              toast(`${unpaid.length} classes removed.`);
+              refresh();
+            } catch (err) {
+              problem.append(errorBox(err));
+            }
+          },
+          "small quiet"
+        )
+      : null;
+
+    fill(
+      body,
+      el("p", { class: "muted" }, `${shown.length} recorded ${shown.length === 1 ? "class" : "classes"}`),
+      removeAll,
+      table(
+        [
+          { key: "on_date", label: "Date", format: shortDate },
+          { key: "instructor_id", label: "Instructor", format: (id) => who[id] || "—" },
+          { key: "dojo_id", label: "Dojo", format: (id) => where[id] || "—" },
+          { key: "rate_applied", label: "Pay", align: "num", format: money },
+          { key: "source", label: "How", format: (v) => (v === "auto" ? "from attendance" : "by hand") },
+          {
+            key: "paid_out",
+            label: "",
+            format: (paid, row) =>
+              paid
+                ? el("span", { class: "pill paid" }, "paid")
+                : button("Remove", async () => {
+                    if (!confirm(
+                      `Remove the ${where[row.dojo_id]} class on ${shortDate(row.on_date)}` +
+                      ` for ${who[row.instructor_id]}?\n\nAttendance is not touched.`
+                    )) return;
+                    problem.replaceChildren();
+                    try {
+                      await db.rpc("remove_taught_session", { p_id: row.id });
+                      toast("Removed.");
+                      refresh();
+                    } catch (err) {
+                      problem.append(errorBox(err));
+                    }
+                  }, "small quiet"),
+          },
+        ],
+        shown.slice(0, 200)
+      ),
+      shown.length > 200
+        ? el("p", { class: "muted" }, `Showing the most recent 200 of ${shown.length}.`)
+        : null
+    );
+  }
+
+  pick.addEventListener("change", draw);
+  draw();
+
+  return card(
+    "Every class recorded",
+    "Which classes the totals above are made of. Remove any that should not be there — attendance is never touched.",
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Whose"), pick),
+    body,
+    problem
   );
 }

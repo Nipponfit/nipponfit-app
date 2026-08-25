@@ -145,7 +145,7 @@ function render({ attendance, students, ref, addons }) {
     "div",
     {},
     overallCard(attendance, months),
-    monthByDojoCard(attendance, months, ref),
+    monthByDojoCard(attendance, months, ref, students, addons),
     card(
       "Student by student",
       `Sorted worst first. Anyone under ${GRADING_THRESHOLD}% cannot be put forward for grading yet.`,
@@ -176,7 +176,27 @@ function overallCard(attendance, months) {
 }
 
 /* A row per month per dojo — the month-by-month view across all dojos */
-function monthByDojoCard(attendance, months, ref) {
+/* The same fairness as the per-student table: a month is measured
+   against what the children's plans buy that month, not against every
+   mark recorded. Dividing by marks made a dojo look poor simply
+   because absences were written down honestly. */
+function monthByDojoCard(attendance, months, ref, students, addons) {
+  const studentById = Object.fromEntries(students.map((s) => [s.id, s]));
+
+  const entitledFor = (ids, month) => {
+    const first = month + "-01";
+    const start = new Date(first);
+    const last = new Date(start.getFullYear(), start.getMonth() + 1, 0)
+      .toISOString().slice(0, 10);
+    let total = 0;
+    for (const id of ids) {
+      const s = studentById[id];
+      if (!s) continue;
+      const mineAddons = addons.filter((a) => a.student_id === id).map((a) => a.plan_id);
+      total += sessionsEntitled(s, ref, mineAddons, first, last);
+    }
+    return total;
+  };
   const rows = [];
 
   for (const month of months) {
@@ -187,37 +207,42 @@ function monthByDojoCard(attendance, months, ref) {
       if (mine.length === 0) continue;
 
       const present = mine.filter((a) => a.present).length;
+      const who = new Set(mine.map((a) => a.student_id));
+      const entitled = entitledFor(who, month);
       rows.push({
         month: monthName(month),
         dojo: dojo.name,
-        students: new Set(mine.map((a) => a.student_id)).size,
-        classes: new Set(mine.map((a) => `${a.on_date}|${a.session_id || ""}`)).size,
+        students: who.size,
+        classes: entitled,
         present,
-        rate: Math.round((present / mine.length) * 100),
+        rate: attendancePercent(present, entitled) ?? 0,
       });
     }
 
     /* A total line for the month, across every dojo */
     const present = inMonth.filter((a) => a.present).length;
+    const whoAll = new Set(inMonth.map((a) => a.student_id));
+    const entitledAll = entitledFor(whoAll, month);
     rows.push({
       month: monthName(month),
       dojo: "— all dojos —",
-      students: new Set(inMonth.map((a) => a.student_id)).size,
-      classes: new Set(inMonth.map((a) => `${a.on_date}|${a.dojo_id}|${a.session_id || ""}`)).size,
+      students: whoAll.size,
+      classes: entitledAll,
       present,
-      rate: Math.round((present / inMonth.length) * 100),
+      rate: attendancePercent(present, entitledAll) ?? 0,
     });
   }
 
   return card(
     "Month by month, dojo by dojo",
-    "Newest month first. Each month ends with a line for all dojos together.",
+    "Newest month first, each month ending with a line for all dojos together. " +
+      "Measured against what the children's plans buy that month, not against every mark taken.",
     table(
       [
         { key: "month", label: "Month" },
         { key: "dojo", label: "Dojo" },
         { key: "students", label: "Students", align: "num" },
-        { key: "classes", label: "Classes", align: "num" },
+        { key: "classes", label: "Their plans", align: "num" },
         { key: "present", label: "Present", align: "num" },
         {
           key: "rate",
