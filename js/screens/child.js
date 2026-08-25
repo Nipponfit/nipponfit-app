@@ -10,7 +10,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { reference, feeFor, beltFor, siblingsOf } from "../reference.js";
+import { reference, feeFor, beltFor, siblingsOf, sessionsEntitled, sessionsPerWeek, attendancePercent } from "../reference.js";
 import { gradingFormUrl, gradingFeeUpiLink } from "../jotform.js";
 import { el, card, table, stat, money, shortDate, button, section, empty, errorBox } from "../ui.js";
 
@@ -89,9 +89,16 @@ function childCard(student, { ref, attendance, history, medals, addons, students
   const siblings = siblingsOf(student, students);
   const fee = feeFor(student, ref, myAddons, { siblings });
 
+  /* Attendance is judged against what their plan buys, not against
+     every class the dojo runs. A child on 2 sessions a week who comes
+     twice a week is 100%. */
   const mine = attendance.filter((a) => a.student_id === student.id);
   const present = mine.filter((a) => a.present).length;
-  const rate = mine.length ? Math.round((present / mine.length) * 100) : null;
+  const perWeek = sessionsPerWeek(student, ref, myAddons);
+  const entitled = sessionsEntitled(
+    student, ref, myAddons, student.joined_on || "2026-01-01", new Date().toISOString().slice(0, 10)
+  );
+  const rate = attendancePercent(present, entitled);
 
   const myHistory = history.filter((h) => h.student_id === student.id);
   const myMedals = medals.filter((m) => m.student_id === student.id);
@@ -106,7 +113,13 @@ function childCard(student, { ref, attendance, history, medals, addons, students
         "div",
         { class: "stats" },
         stat("Belt", belt ? belt.name : "Not set", belt ? belt.kyu : null),
-        stat("Attendance", rate === null ? "—" : rate + "%", mine.length ? `${present} of ${mine.length} classes` : "no classes yet"),
+        stat(
+          "Attendance",
+          rate === null ? "—" : rate + "%",
+          entitled
+            ? `${present} of ${entitled} classes` + (perWeek ? ` · ${perWeek} a week` : "")
+            : "no classes yet"
+        ),
         stat(
           "Fees",
           money(fee.total),
@@ -214,7 +227,7 @@ function gradingCard(student, belt, next, rate) {
         "p",
         { class: "muted", style: "margin:0" },
         rate !== null && rate < 75
-          ? `Attendance is ${rate}%. Grading opens at 75%, once the instructor puts your child forward.`
+          ? `Attendance is ${rate}% — ${present} of the ${entitled} classes their plan covers. Grading opens at 75%, once the instructor puts your child forward.`
           : "Your child has not been put forward for grading yet. The instructor decides when they are ready."
       )
     );

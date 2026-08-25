@@ -133,3 +133,55 @@ export function beltFor(student, ref) {
   const next = ref.belts.find((b) => b.sort_order === belt.sort_order + 1) || null;
   return { belt, next };
 }
+
+
+/* ------------------------------------------------------------------ */
+/* Attendance judged against the plan                                  */
+/* ------------------------------------------------------------------ */
+
+/* How many classes a week this child's plan buys, including add-ons.
+   The number comes from the plan itself, so it changes when you change
+   the plan and never needs maintaining separately. */
+export function sessionsPerWeek(student, ref, addonPlanIds = []) {
+  const plan = ref.planById[student.plan_id];
+  let perWeek = Number(plan?.sessions_per_week) || 0;
+
+  for (const id of addonPlanIds) {
+    perWeek += Number(ref.planById[id]?.sessions_per_week) || 0;
+  }
+  return perWeek;
+}
+
+/* How many classes they were entitled to between two dates.
+
+   Never counts weeks before they joined, or weeks they were away on a
+   break. Mirrors sessions_entitled() in the database line for line, so
+   the app and any report always agree. */
+export function sessionsEntitled(student, ref, addonPlanIds, from, to) {
+  const perWeek = sessionsPerWeek(student, ref, addonPlanIds);
+  if (!perWeek) return 0;
+
+  const day = (d) => new Date(String(d).slice(0, 10) + "T00:00:00").getTime();
+  const DAY = 86400000;
+
+  const starts = Math.max(day(from), student.joined_on ? day(student.joined_on) : day(from));
+  const ends = Math.min(day(to), Date.now());
+  if (ends < starts) return 0;
+
+  let awayDays = 0;
+  if (student.break_from) {
+    const bFrom = Math.max(starts, day(student.break_from));
+    const bTo = Math.min(ends, student.break_to ? day(student.break_to) : ends);
+    if (bTo > bFrom) awayDays = (bTo - bFrom) / DAY;
+  }
+
+  const days = (ends - starts) / DAY + 1 - awayDays;
+  return Math.max(0, Math.round((days / 7) * perWeek));
+}
+
+/* The percentage itself. Capped at 100, because a keen child who comes
+   to extra classes is not 130% attentive - they are simply there. */
+export function attendancePercent(attended, entitled) {
+  if (!entitled) return null;
+  return Math.min(100, Math.round((attended / entitled) * 100));
+}

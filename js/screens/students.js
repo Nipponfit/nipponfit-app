@@ -15,16 +15,15 @@ export async function studentsScreen({ refresh }) {
 }
 
 async function load() {
-  const [students, ref, addons, assigned] = await Promise.all([
+  const [students, ref, addons] = await Promise.all([
     db.select("students", { order: "full_name" }),
     reference(),
     db.select("student_addons"),
-    db.select("student_sessions").catch(() => []),
   ]);
-  return { students, ref, addons, assigned };
+  return { students, ref, addons };
 }
 
-function render({ students, ref, addons, assigned }, refresh) {
+function render({ students, ref, addons }, refresh) {
   const search = input({ placeholder: "Search by name, ID card or mobile", autocapitalize: "off" });
   const results = el("div", {});
   const detail = el("div", {});
@@ -57,7 +56,7 @@ function render({ students, ref, addons, assigned }, refresh) {
             key: "full_name",
             label: "Student",
             format: (name, row) =>
-              el("a", { href: "#", onClick: (e) => { e.preventDefault(); detail.replaceChildren(studentPanel(row, ref, addons, active, assigned, refresh)); detail.scrollIntoView({ behavior: "smooth", block: "start" }); } }, name),
+              el("a", { href: "#", onClick: (e) => { e.preventDefault(); detail.replaceChildren(studentPanel(row, ref, addons, active, refresh)); detail.scrollIntoView({ behavior: "smooth", block: "start" }); } }, name),
           },
           { key: "id_card", label: "ID card" },
           { key: "dojo_id", label: "Dojo", format: (id) => ref.dojoById[id]?.name },
@@ -105,7 +104,7 @@ function render({ students, ref, addons, assigned }, refresh) {
   );
 }
 
-function studentPanel(student, ref, addons, allStudents, assigned, refresh) {
+function studentPanel(student, ref, addons, allStudents, refresh) {
   const { belt, next } = beltFor(student, ref);
   const dojo = ref.dojoById[student.dojo_id];
   const siblings = siblingsOf(student, allStudents);
@@ -217,8 +216,8 @@ function studentPanel(student, ref, addons, allStudents, assigned, refresh) {
     feeButtons,
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Joining date"),
     joiningDateEditor(student, change),
-    el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Which classes they attend"),
-    classChooser(student, ref, assigned, refresh),
+    el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Elite squad"),
+    eliteToggle(student, ref, addons, refresh),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Next payment"),
     dueDateEditor(student, change),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Change this student's fee"),
@@ -433,72 +432,51 @@ function breakDatesEditor(student, change) {
     save);
 }
 
-/* Which weekly classes this child actually attends.
+/* Elite squad is the only opt-in. Everything else about how many
+   classes a week a child takes comes from their fee plan, and their
+   attendance percentage is judged against that.
 
-   A child on 2 sessions a week should not appear on all four registers
-   collecting absences. Until classes are chosen they appear everywhere
-   at their dojo, which is the safe default. */
-function classChooser(student, ref, assigned, refresh) {
-  const mine = new Set(
-    assigned.filter((a) => a.student_id === student.id).map((a) => a.session_id)
+   Only children who have opted in appear on the Elite Squad register. */
+function eliteToggle(student, ref, addons, refresh) {
+  const elite = ref.plans.find(
+    (p) => p.dojo_id === student.dojo_id && /elite/i.test(p.label)
   );
 
-  const classes = ref.sessions
-    .filter((s) => s.dojo_id === student.dojo_id && s.active !== false)
-    .sort((a, b) => String(a.weekday).localeCompare(String(b.weekday)) ||
-                    String(a.start_time).localeCompare(String(b.start_time)));
-
-  if (classes.length === 0) {
-    return el("p", { class: "muted" }, "This dojo has no weekly classes set up yet.");
+  if (!elite) {
+    return el("p", { class: "muted" }, "This dojo does not run an Elite squad.");
   }
 
+  const isIn = addons.some((a) => a.student_id === student.id && a.plan_id === elite.id);
   const problem = el("div", {});
-  const boxes = new Map();
 
-  const rows = classes.map((s) => {
-    const box = el("input", { type: "checkbox", class: "tick", checked: mine.has(s.id) });
-    boxes.set(s.id, box);
-    return el("label", { class: "tick-row" }, box,
-      el("span", { class: "tick-body" },
-        el("span", { class: "tick-name" }, `${s.weekday} · ${s.start_time}\u2013${s.end_time}`),
-        el("span", { class: "muted" }, s.label || "Class")));
-  });
-
-  const save = button("Save their classes", async () => {
-    problem.replaceChildren();
-    save.disabled = true;
-    save.textContent = "Saving\u2026";
-    try {
-      const wanted = [...boxes.entries()].filter(([, b]) => b.checked).map(([id]) => id);
-
-      // Replace the lot: remove what is no longer ticked, add what is new.
-      for (const id of mine) {
-        if (!wanted.includes(id)) {
-          await db.remove("student_sessions", { student_id: student.id, session_id: id });
+  const go = button(
+    isIn ? "Take them out of Elite squad" : "Put them in Elite squad",
+    async () => {
+      problem.replaceChildren();
+      go.disabled = true;
+      go.textContent = "Saving\u2026";
+      try {
+        if (isIn) {
+          await db.remove("student_addons", { student_id: student.id, plan_id: elite.id });
+          toast(`${student.full_name} taken out of Elite squad.`);
+        } else {
+          await db.insert("student_addons", { student_id: student.id, plan_id: elite.id });
+          toast(`${student.full_name} added to Elite squad.`);
         }
+        refresh();
+      } catch (err) {
+        problem.append(errorBox(err));
       }
-      const fresh = wanted.filter((id) => !mine.has(id));
-      if (fresh.length) {
-        await db.insert("student_sessions",
-          fresh.map((id) => ({ student_id: student.id, session_id: id })));
-      }
-      toast(wanted.length
-        ? `${student.full_name} is in ${wanted.length} class${wanted.length === 1 ? "" : "es"}.`
-        : "Cleared. They will show on every register at this dojo again.");
-      refresh();
-    } catch (err) {
-      problem.append(errorBox(err));
-    }
-    save.disabled = false;
-    save.textContent = "Save their classes";
-  }, "small");
+      go.disabled = false;
+    },
+    isIn ? "small quiet" : "small"
+  );
 
   return el("div", { style: "margin-top:8px" },
     el("p", { class: "muted" },
-       mine.size
-         ? "They appear only on these registers."
-         : "No classes chosen, so they appear on every register at this dojo."),
-    ...rows,
+       isIn
+         ? `In the Elite squad — ${money(elite.fee)} a quarter on top of their plan, and they appear on the Elite Squad register.`
+         : `Not in the Elite squad. Adding them costs ${money(elite.fee)} a quarter on top of their plan.`),
     problem,
-    el("div", { style: "margin-top:10px" }, save));
+    go);
 }

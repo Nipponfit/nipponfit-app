@@ -24,17 +24,17 @@ export async function attendanceScreen({ me }) {
 }
 
 async function load() {
-  const [ref, roster, holidays, extras, assigned] = await Promise.all([
+  const [ref, roster, holidays, extras, addons] = await Promise.all([
     reference(),
     db.select("roster", { order: "full_name" }),
     db.select("session_holidays").catch(() => []),
     db.select("one_off_sessions").catch(() => []),
-    db.select("student_sessions").catch(() => []),
+    db.select("student_addons").catch(() => []),
   ]);
-  return { ref, roster: roster.filter((s) => s.active !== false), holidays, extras, assigned };
+  return { ref, roster: roster.filter((s) => s.active !== false), holidays, extras, addons };
 }
 
-function render({ ref, roster, holidays, extras, assigned }, me) {
+function render({ ref, roster, holidays, extras, addons }, me) {
   if (ref.dojos.length === 0) return card("Mark attendance", null, empty("No dojos are set up yet."));
 
   const mySessions = ref.sessions.filter((s) => s.instructor_id === me.id);
@@ -125,21 +125,25 @@ function render({ ref, roster, holidays, extras, assigned }, me) {
 
     /* Who belongs on THIS register, on THIS date.
 
-       Three rules, and each exists because getting it wrong distorts
-       the attendance percentage that grading is judged on:
+       Everyone at the dojo, except:
 
-         joined      a child who joined in June is not on a January
-                     register at all
-         on a break  only for the dates they were actually away, so
-                     the months before a break stay markable
-         this class  a child on 2 sessions a week must not collect
-                     absences for the other two. A child with no
-                     classes chosen yet still shows everywhere, so
-                     nothing breaks while you fill them in. */
-    const inThisClass = new Set(
-      assigned.filter((a) => a.session_id === sessionId).map((a) => a.student_id)
+         joined       a child who joined in June is not on a January
+                      register at all
+         on a break   only for the dates they were actually away, so
+                      the months before a break stay markable
+         Elite Squad  a class tied to a plan is only for the children
+                      who bought that plan
+
+       Nobody is filtered by how many sessions a week they take. Their
+       percentage is judged against what their plan buys them, not
+       against every class the dojo runs — so a child on 2 a week who
+       comes twice is 100%, and appearing on a register they skipped
+       costs them nothing. */
+    const chosen = ref.sessions.find((s) => s.id === sessionId);
+    const onlyForPlan = chosen?.plan_id || null;
+    const boughtIt = new Set(
+      addons.filter((a) => a.plan_id === onlyForPlan).map((a) => a.student_id)
     );
-    const hasAnyClass = new Set(assigned.map((a) => a.student_id));
 
     const away = (s) =>
       s.break_from &&
@@ -151,15 +155,16 @@ function render({ ref, roster, holidays, extras, assigned }, me) {
         s.dojo_id === dojoId &&
         !away(s) &&
         (!s.joined_on || String(s.joined_on).slice(0, 10) <= date) &&
-        // in this class, or not yet placed in any class at all
-        (sessionId === null || inThisClass.has(s.id) || !hasAnyClass.has(s.id))
+        (!onlyForPlan || boughtIt.has(s.id))
     );
 
     const notYet = roster.filter(
       (s) => s.dojo_id === dojoId && s.joined_on && String(s.joined_on).slice(0, 10) > date
     ).length;
 
-    const unplaced = students.filter((s) => !hasAnyClass.has(s.id)).length;
+    const eliteNote = onlyForPlan
+      ? `Only the ${students.length} ${students.length === 1 ? "child" : "children"} who take this class.`
+      : null;
 
     if (students.length === 0) {
       list.replaceChildren(
@@ -223,12 +228,7 @@ function render({ ref, roster, holidays, extras, assigned }, me) {
              `${notYet} more ${notYet === 1 ? "child has" : "children have"} joined this dojo since ` +
              `${shortDate(date)}. They appear on registers from their own joining date.`)
         : null,
-      unplaced
-        ? el("p", { class: "muted", style: "margin-top:6px" },
-             `${unplaced} of these ${unplaced === 1 ? "child has" : "children have"} no classes chosen yet, ` +
-             "so they show on every register at this dojo. Choose their classes on the Students tab " +
-             "and they will only appear where they belong.")
-        : null
+      eliteNote ? el("p", { class: "muted", style: "margin-top:6px" }, eliteNote) : null
     );
     updateSummary();
   }

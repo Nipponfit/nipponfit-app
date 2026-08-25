@@ -9,7 +9,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { reference } from "../reference.js";
+import { reference, sessionsEntitled, attendancePercent } from "../reference.js";
 import { el, card, table, stat, section, empty } from "../ui.js";
 
 const GRADING_THRESHOLD = 75;
@@ -23,15 +23,16 @@ export async function attendanceReportScreen() {
 }
 
 async function load() {
-  const [attendance, students, ref] = await Promise.all([
+  const [attendance, students, ref, addons] = await Promise.all([
     db.select("attendance", { limit: 5000 }),
     db.select("students", { order: "full_name" }),
     reference(),
+    db.select("student_addons").catch(() => []),
   ]);
-  return { attendance, students, ref };
+  return { attendance, students, ref, addons };
 }
 
-function render({ attendance, students, ref }) {
+function render({ attendance, students, ref, addons }) {
   if (attendance.length === 0) {
     return card(
       "Attendance report",
@@ -78,15 +79,25 @@ function render({ attendance, students, ref }) {
     const rows = [...perStudent.entries()]
       .map(([id, r]) => {
         const student = studentById[id];
-        const rate = r.held ? Math.round((r.present / r.held) * 100) : 0;
+
+        /* Judged against what their plan buys that month, not against
+           every class the dojo held. A child on 2 sessions a week who
+           came twice a week is 100%. */
+        const mineAddons = addons.filter((a) => a.student_id === id).map((a) => a.plan_id);
+        const first = month + "-01";
+        const start = new Date(first);
+        const last = new Date(start.getFullYear(), start.getMonth() + 1, 0)
+          .toISOString().slice(0, 10);
+        const entitled = student ? sessionsEntitled(student, ref, mineAddons, first, last) : 0;
+
         return {
           student: student?.full_name || "(not on the roll)",
           dojo: ref.dojoById[student?.dojo_id]?.name || "—",
           belt: ref.beltById[student?.belt_id]?.name || "—",
-          held: r.held,
+          held: entitled,
           present: r.present,
-          missed: r.held - r.present,
-          rate,
+          missed: Math.max(0, entitled - r.present),
+          rate: attendancePercent(r.present, entitled) ?? 0,
         };
       })
       .sort((a, b) => a.rate - b.rate || a.student.localeCompare(b.student));
@@ -105,7 +116,7 @@ function render({ attendance, students, ref }) {
           { key: "student", label: "Student" },
           { key: "dojo", label: "Dojo" },
           { key: "belt", label: "Belt" },
-          { key: "held", label: "Classes", align: "num" },
+          { key: "held", label: "Their plan", align: "num" },
           { key: "present", label: "Present", align: "num" },
           { key: "missed", label: "Missed", align: "num" },
           {
