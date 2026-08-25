@@ -24,16 +24,17 @@ export async function attendanceScreen({ me }) {
 }
 
 async function load() {
-  const [ref, roster, holidays, extras] = await Promise.all([
+  const [ref, roster, holidays, extras, assigned] = await Promise.all([
     reference(),
     db.select("roster", { order: "full_name" }),
     db.select("session_holidays").catch(() => []),
     db.select("one_off_sessions").catch(() => []),
+    db.select("student_sessions").catch(() => []),
   ]);
-  return { ref, roster: roster.filter((s) => s.active !== false), holidays, extras };
+  return { ref, roster: roster.filter((s) => s.active !== false), holidays, extras, assigned };
 }
 
-function render({ ref, roster, holidays, extras }, me) {
+function render({ ref, roster, holidays, extras, assigned }, me) {
   if (ref.dojos.length === 0) return card("Mark attendance", null, empty("No dojos are set up yet."));
 
   const mySessions = ref.sessions.filter((s) => s.instructor_id === me.id);
@@ -122,21 +123,43 @@ function render({ ref, roster, holidays, extras }, me) {
     }
     save.disabled = false;
 
-    /* Only children who had actually joined by this date, and who are
-       not on a break. A child who joins in June must not appear on a
-       January register at all - marking them absent for months they
-       were not here would wreck their attendance percentage, which is
-       what grading eligibility is judged on. */
+    /* Who belongs on THIS register, on THIS date.
+
+       Three rules, and each exists because getting it wrong distorts
+       the attendance percentage that grading is judged on:
+
+         joined      a child who joined in June is not on a January
+                     register at all
+         on a break  only for the dates they were actually away, so
+                     the months before a break stay markable
+         this class  a child on 2 sessions a week must not collect
+                     absences for the other two. A child with no
+                     classes chosen yet still shows everywhere, so
+                     nothing breaks while you fill them in. */
+    const inThisClass = new Set(
+      assigned.filter((a) => a.session_id === sessionId).map((a) => a.student_id)
+    );
+    const hasAnyClass = new Set(assigned.map((a) => a.student_id));
+
+    const away = (s) =>
+      s.break_from &&
+      String(s.break_from).slice(0, 10) <= date &&
+      (!s.break_to || String(s.break_to).slice(0, 10) >= date);
+
     const students = roster.filter(
       (s) =>
         s.dojo_id === dojoId &&
-        !s.on_break &&
-        (!s.joined_on || String(s.joined_on).slice(0, 10) <= date)
+        !away(s) &&
+        (!s.joined_on || String(s.joined_on).slice(0, 10) <= date) &&
+        // in this class, or not yet placed in any class at all
+        (sessionId === null || inThisClass.has(s.id) || !hasAnyClass.has(s.id))
     );
 
     const notYet = roster.filter(
       (s) => s.dojo_id === dojoId && s.joined_on && String(s.joined_on).slice(0, 10) > date
     ).length;
+
+    const unplaced = students.filter((s) => !hasAnyClass.has(s.id)).length;
 
     if (students.length === 0) {
       list.replaceChildren(
@@ -199,6 +222,12 @@ function render({ ref, roster, holidays, extras }, me) {
         ? el("p", { class: "muted", style: "margin-top:10px" },
              `${notYet} more ${notYet === 1 ? "child has" : "children have"} joined this dojo since ` +
              `${shortDate(date)}. They appear on registers from their own joining date.`)
+        : null,
+      unplaced
+        ? el("p", { class: "muted", style: "margin-top:6px" },
+             `${unplaced} of these ${unplaced === 1 ? "child has" : "children have"} no classes chosen yet, ` +
+             "so they show on every register at this dojo. Choose their classes on the Students tab " +
+             "and they will only appear where they belong.")
         : null
     );
     updateSummary();

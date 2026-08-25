@@ -15,15 +15,16 @@ export async function studentsScreen({ refresh }) {
 }
 
 async function load() {
-  const [students, ref, addons] = await Promise.all([
+  const [students, ref, addons, assigned] = await Promise.all([
     db.select("students", { order: "full_name" }),
     reference(),
     db.select("student_addons"),
+    db.select("student_sessions").catch(() => []),
   ]);
-  return { students, ref, addons };
+  return { students, ref, addons, assigned };
 }
 
-function render({ students, ref, addons }, refresh) {
+function render({ students, ref, addons, assigned }, refresh) {
   const search = input({ placeholder: "Search by name, ID card or mobile", autocapitalize: "off" });
   const results = el("div", {});
   const detail = el("div", {});
@@ -56,7 +57,7 @@ function render({ students, ref, addons }, refresh) {
             key: "full_name",
             label: "Student",
             format: (name, row) =>
-              el("a", { href: "#", onClick: (e) => { e.preventDefault(); detail.replaceChildren(studentPanel(row, ref, addons, active, refresh)); detail.scrollIntoView({ behavior: "smooth", block: "start" }); } }, name),
+              el("a", { href: "#", onClick: (e) => { e.preventDefault(); detail.replaceChildren(studentPanel(row, ref, addons, active, assigned, refresh)); detail.scrollIntoView({ behavior: "smooth", block: "start" }); } }, name),
           },
           { key: "id_card", label: "ID card" },
           { key: "dojo_id", label: "Dojo", format: (id) => ref.dojoById[id]?.name },
@@ -104,7 +105,7 @@ function render({ students, ref, addons }, refresh) {
   );
 }
 
-function studentPanel(student, ref, addons, allStudents, refresh) {
+function studentPanel(student, ref, addons, allStudents, assigned, refresh) {
   const { belt, next } = beltFor(student, ref);
   const dojo = ref.dojoById[student.dojo_id];
   const siblings = siblingsOf(student, allStudents);
@@ -121,8 +122,13 @@ function studentPanel(student, ref, addons, allStudents, refresh) {
     : student.on_break ? "On a break — not billed"
     : "Training";
 
+  const breakSpan = student.break_from
+    ? shortDate(student.break_from) + (student.break_to ? " to " + shortDate(student.break_to) : " onwards")
+    : null;
+
   const facts = [
     ["Status", status],
+    breakSpan ? ["Break", breakSpan] : null,
     ["ID card", student.id_card],
     ["Dojo", dojo?.name],
     ["Belt", belt ? `${belt.name} (${belt.kyu})` : "Not set"],
@@ -209,12 +215,17 @@ function studentPanel(student, ref, addons, allStudents, refresh) {
     ),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Fees"),
     feeButtons,
+    el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Joining date"),
+    joiningDateEditor(student, change),
+    el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Which classes they attend"),
+    classChooser(student, ref, assigned, refresh),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Next payment"),
     dueDateEditor(student, change),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Change this student's fee"),
     feeEditor(student, fee, change),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Is this student training?"),
     statusEditor(student, change),
+    breakDatesEditor(student, change),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Grading"),
     gradingBlock,
     problem
@@ -364,4 +375,130 @@ function gradingDateEditor(student, change) {
        el("span", { class: "field-label" }, "Date of the grading exam"), when),
     save
   );
+}
+
+
+/* The joining date decides the first register a child appears on, so a
+   wrong one either hides them for months or collects absences for weeks
+   they were not yet here. */
+function joiningDateEditor(student, change) {
+  const when = input({ type: "date", value: student.joined_on ? String(student.joined_on).slice(0, 10) : "" });
+  const save = button("Save joining date", async () => {
+    save.disabled = true;
+    save.textContent = "Saving\u2026";
+    await change({ joined_on: when.value || null },
+                 when.value ? "Joining date saved." : "Joining date cleared.");
+    save.disabled = false;
+    save.textContent = "Save joining date";
+  }, "small");
+
+  return el("div", { style: "margin-top:8px" },
+    el("label", { class: "field" },
+       el("span", { class: "field-label" }, "First day at the dojo"), when),
+    el("p", { class: "muted", style: "margin:-6px 0 10px" },
+       "They appear on registers from this date onwards, and never before it."),
+    save);
+}
+
+/* Dates for a break, so the months before it stay markable.
+
+   Marking someone "on a break" without dates used to remove them from
+   every register, including January when they were still training. */
+function breakDatesEditor(student, change) {
+  const from = input({ type: "date", value: student.break_from ? String(student.break_from).slice(0, 10) : "" });
+  const to   = input({ type: "date", value: student.break_to   ? String(student.break_to).slice(0, 10)   : "" });
+
+  const save = button("Save these dates", async () => {
+    save.disabled = true;
+    save.textContent = "Saving\u2026";
+    const today = new Date().toISOString().slice(0, 10);
+    const away = from.value && from.value <= today && (!to.value || to.value >= today);
+    await change(
+      { break_from: from.value || null, break_to: to.value || null, on_break: Boolean(away) },
+      from.value ? "Break dates saved." : "Break cleared."
+    );
+    save.disabled = false;
+    save.textContent = "Save these dates";
+  }, "small");
+
+  return el("div", { style: "margin-top:12px" },
+    el("div", { style: "display:flex;gap:10px" },
+      el("label", { class: "field", style: "flex:1" },
+         el("span", { class: "field-label" }, "Break from"), from),
+      el("label", { class: "field", style: "flex:1" },
+         el("span", { class: "field-label" }, "Back on"), to)),
+    el("p", { class: "muted", style: "margin:-6px 0 10px" },
+       "Leave \u201CBack on\u201D empty if you do not know yet. Attendance before the break " +
+       "can still be marked \u2014 those months really happened."),
+    save);
+}
+
+/* Which weekly classes this child actually attends.
+
+   A child on 2 sessions a week should not appear on all four registers
+   collecting absences. Until classes are chosen they appear everywhere
+   at their dojo, which is the safe default. */
+function classChooser(student, ref, assigned, refresh) {
+  const mine = new Set(
+    assigned.filter((a) => a.student_id === student.id).map((a) => a.session_id)
+  );
+
+  const classes = ref.sessions
+    .filter((s) => s.dojo_id === student.dojo_id && s.active !== false)
+    .sort((a, b) => String(a.weekday).localeCompare(String(b.weekday)) ||
+                    String(a.start_time).localeCompare(String(b.start_time)));
+
+  if (classes.length === 0) {
+    return el("p", { class: "muted" }, "This dojo has no weekly classes set up yet.");
+  }
+
+  const problem = el("div", {});
+  const boxes = new Map();
+
+  const rows = classes.map((s) => {
+    const box = el("input", { type: "checkbox", class: "tick", checked: mine.has(s.id) });
+    boxes.set(s.id, box);
+    return el("label", { class: "tick-row" }, box,
+      el("span", { class: "tick-body" },
+        el("span", { class: "tick-name" }, `${s.weekday} · ${s.start_time}\u2013${s.end_time}`),
+        el("span", { class: "muted" }, s.label || "Class")));
+  });
+
+  const save = button("Save their classes", async () => {
+    problem.replaceChildren();
+    save.disabled = true;
+    save.textContent = "Saving\u2026";
+    try {
+      const wanted = [...boxes.entries()].filter(([, b]) => b.checked).map(([id]) => id);
+
+      // Replace the lot: remove what is no longer ticked, add what is new.
+      for (const id of mine) {
+        if (!wanted.includes(id)) {
+          await db.remove("student_sessions", { student_id: student.id, session_id: id });
+        }
+      }
+      const fresh = wanted.filter((id) => !mine.has(id));
+      if (fresh.length) {
+        await db.insert("student_sessions",
+          fresh.map((id) => ({ student_id: student.id, session_id: id })));
+      }
+      toast(wanted.length
+        ? `${student.full_name} is in ${wanted.length} class${wanted.length === 1 ? "" : "es"}.`
+        : "Cleared. They will show on every register at this dojo again.");
+      refresh();
+    } catch (err) {
+      problem.append(errorBox(err));
+    }
+    save.disabled = false;
+    save.textContent = "Save their classes";
+  }, "small");
+
+  return el("div", { style: "margin-top:8px" },
+    el("p", { class: "muted" },
+       mine.size
+         ? "They appear only on these registers."
+         : "No classes chosen, so they appear on every register at this dojo."),
+    ...rows,
+    problem,
+    el("div", { style: "margin-top:10px" }, save));
 }
