@@ -362,10 +362,17 @@ function feePlans(ref, save) {
       String(a.label).localeCompare(String(b.label)))
     .map((p) => {
       const fee = input({ type: "number", value: p.fee });
+      const perWeek = input({ type: "number", step: "0.5", min: "0",
+                              value: p.sessions_per_week ?? "" });
+
       const go = button("Save", () => {
         save(
-          () => db.update("fee_plans", { id: p.id }, { fee: Number(fee.value) || 0 }),
-          `${p.label} set to ${money(Number(fee.value) || 0)}.`,
+          () => db.update("fee_plans", { id: p.id }, {
+            fee: Number(fee.value) || 0,
+            sessions_per_week: perWeek.value === "" ? null : Number(perWeek.value),
+          }),
+          `${p.label}: ${money(Number(fee.value) || 0)}, ` +
+            `${perWeek.value || "?"} classes a week.`,
           problem
         );
       }, "small");
@@ -374,19 +381,22 @@ function feePlans(ref, save) {
         dojo: ref.dojoById[p.dojo_id]?.name || "—",
         label: p.label + (p.is_addon ? " (add-on)" : ""),
         cycle: p.cycle === "month" ? "monthly" : "quarterly",
-        fee: el("div", { style: "display:flex;gap:8px;align-items:center" }, fee, go),
+        fee: el("div", { style: "display:flex;gap:8px;align-items:center" }, fee),
+        perWeek: el("div", { style: "display:flex;gap:8px;align-items:center" }, perWeek, go),
       };
     });
 
   return card(
     "Fee plans",
-    "Changing a fee changes what every student on that plan is asked for next time. It does not change anything already paid.",
+    "Changing a fee changes what every student on that plan is asked for next time; it does not change anything already paid. " +
+      "“Classes a week” is what attendance is judged against — a child on 2 a week who comes twice is 100%.",
     table(
       [
         { key: "dojo", label: "Dojo" },
         { key: "label", label: "Plan" },
         { key: "cycle", label: "Billed" },
         { key: "fee", label: "Fee before GST" },
+        { key: "perWeek", label: "Classes a week" },
       ],
       rows,
       { emptyMessage: "No fee plans are set up." }
