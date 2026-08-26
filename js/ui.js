@@ -135,14 +135,27 @@ export const field = (label, input) =>
 export const input = (attrs = {}) => el("input", { class: "input", ...attrs });
 
 /* A labelled number, used across the dashboards */
-export const stat = (label, value, note) =>
-  el(
+/* A labelled number. Give it an onOpen and it becomes something the
+   reader can tap for the detail behind the number. */
+export const stat = (label, value, note, onOpen) => {
+  const box = el(
     "div",
-    { class: "stat" },
+    { class: `stat${onOpen ? " stat-open" : ""}` },
     el("div", { class: "stat-value" }, value),
     el("div", { class: "stat-label" }, label),
-    note && el("div", { class: "stat-note" }, note)
+    note && el("div", { class: "stat-note" }, note),
+    onOpen && el("div", { class: "stat-more" }, "Tap for month by month")
   );
+  if (onOpen) {
+    box.setAttribute("role", "button");
+    box.setAttribute("tabindex", "0");
+    box.addEventListener("click", onOpen);
+    box.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); }
+    });
+  }
+  return box;
+};
 
 /* A simple table from rows of data.
    columns: [{ key, label, format }]                                    */

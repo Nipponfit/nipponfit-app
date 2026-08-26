@@ -12,7 +12,7 @@
 import * as db from "../db.js";
 import { reference, feeFor, beltFor, siblingsOf, sessionsEntitled, sessionsPerWeek, attendancePercent } from "../reference.js";
 import { gradingFormUrl, gradingFeeUpiLink } from "../jotform.js";
-import { el, card, table, stat, money, shortDate, button, section, empty, errorBox, localDate } from "../ui.js";
+import { el, card, table, stat, money, shortDate, button, fill, section, empty, errorBox, localDate } from "../ui.js";
 
 const CFG = window.NIPPONFIT_CONFIG || {};
 
@@ -91,14 +91,70 @@ function childCard(student, { ref, attendance, history, medals, addons, students
 
   /* Attendance is judged against what their plan buys, not against
      every class the dojo runs. A child on 2 sessions a week who comes
-     twice a week is 100%. */
+     twice a week is 100%.
+
+     The headline is THIS MONTH. A single lifetime figure only ever
+     drifts downwards and stops meaning anything — a child who has
+     turned it around since June deserves to see June is behind them. */
   const mine = attendance.filter((a) => a.student_id === student.id);
-  const present = mine.filter((a) => a.present).length;
   const perWeek = sessionsPerWeek(student, ref, myAddons);
-  const entitled = sessionsEntitled(
+
+  const months = monthsFor(student, mine);
+  const thisMonth = months[months.length - 1] || null;
+
+  const lifetimePresent = mine.filter((a) => a.present).length;
+  const lifetimeEntitled = sessionsEntitled(
     student, ref, myAddons, student.joined_on || "2026-01-01", localDate()
   );
-  const rate = attendancePercent(present, entitled);
+
+  const present = thisMonth ? thisMonth.present : 0;
+  const entitled = thisMonth && thisMonth.recorded ? thisMonth.entitled : 0;
+  const rate = thisMonth ? thisMonth.rate : null;
+
+  /* The month-by-month panel, hidden until the number is tapped. */
+  const breakdown = el("div", {});
+  let showing = false;
+  const toggleMonths = () => {
+    showing = !showing;
+    fill(breakdown, showing ? monthsCard(student, months, lifetimePresent, lifetimeEntitled) : null);
+    if (showing) breakdown.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+
+  function monthsFor(child, marks) {
+    const out = [];
+    const start = new Date((child.joined_on || "2026-01-01").slice(0, 10) + "T00:00:00");
+    const now = new Date();
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+
+    while (cursor <= now) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+      const first = key + "-01";
+      const last = localDate(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0));
+
+      const inMonth = marks.filter((a) => String(a.on_date).slice(0, 7) === key);
+      const wasPresent = inMonth.filter((a) => a.present).length;
+      const wasAbsent = inMonth.filter((a) => !a.present).length;
+      const owed = sessionsEntitled(child, ref, myAddons, first, last);
+
+      /* A month with no register marked at all is not a month the child
+         missed — it is a month nobody wrote down. Showing 0% there
+         blames the child for the dojo's paperwork, so it shows nothing
+         and says so. */
+      const nothingRecorded = wasPresent + wasAbsent === 0;
+
+      out.push({
+        key,
+        label: cursor.toLocaleDateString("en-IN", { month: "long", year: "numeric" }),
+        present: wasPresent,
+        absent: wasAbsent,
+        entitled: owed,
+        recorded: !nothingRecorded,
+        rate: nothingRecorded ? null : attendancePercent(wasPresent, owed),
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return out;
+  }
 
   const myHistory = history.filter((h) => h.student_id === student.id);
   const myMedals = medals.filter((m) => m.student_id === student.id);
@@ -114,11 +170,12 @@ function childCard(student, { ref, attendance, history, medals, addons, students
         { class: "stats" },
         stat("Belt", belt ? belt.name : "Not set", belt ? belt.kyu : null),
         stat(
-          "Attendance",
+          "Attendance this month",
           rate === null ? "—" : rate + "%",
           entitled
             ? `${present} of ${entitled} classes` + (perWeek ? ` · ${perWeek} a week` : "")
-            : "no classes yet"
+            : "nothing marked yet this month",
+          months.length > 1 ? toggleMonths : null
         ),
         stat(
           "Fees",
@@ -136,6 +193,8 @@ function childCard(student, { ref, attendance, history, medals, addons, students
         )
       )
     ),
+
+    breakdown,
 
     student.on_break
       ? card(
@@ -321,5 +380,51 @@ function feeUpiLink(amount, student) {
     `&pn=${encodeURIComponent("Nippon Karate Club")}` +
     `&am=${rupees}&cu=INR` +
     `&tn=${encodeURIComponent(student.id_card ? student.id_card + " fee" : student.full_name + " fee")}`
+  );
+}
+
+
+/* Month by month, for a parent who wants to know where the number came
+   from.
+
+   "Classes" is what their fee covers that month, not every class the
+   dojo ran — a child on two a week is measured against two a week.
+   Came and Missed are what was actually written down, and they will not
+   always add up to the classes owed: a month with no register marked
+   shows neither, which is honest rather than pretending they were
+   absent. */
+function monthsCard(student, months, lifetimePresent, lifetimeEntitled) {
+  const shown = [...months].reverse();
+  const lifetime = attendancePercent(lifetimePresent, lifetimeEntitled);
+
+  return card(
+    `${student.full_name} — month by month`,
+    "Tap the percentage again to close this.",
+    table(
+      [
+        { key: "label", label: "Month" },
+        { key: "present", label: "Came", align: "num", format: (v, r) => (r.recorded ? v : "—") },
+        { key: "absent", label: "Missed", align: "num", format: (v, r) => (r.recorded ? v : "—") },
+        { key: "entitled", label: "Classes", align: "num" },
+        {
+          key: "rate",
+          label: "Attendance",
+          align: "num",
+          format: (v, row) =>
+            v === null
+              ? el("span", { class: "muted" }, row.recorded ? "—" : "not marked")
+              : el("span", { class: `pill ${v >= 75 ? "paid" : "due"}` }, v + "%"),
+        },
+      ],
+      shown
+    ),
+    el(
+      "p",
+      { class: "muted", style: "margin-top:12px" },
+      lifetime === null
+        ? "No classes recorded yet."
+        : `Since joining: ${lifetimePresent} of ${lifetimeEntitled} classes, ${lifetime}% overall. ` +
+          "Grading opens at 75%."
+    )
   );
 }

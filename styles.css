@@ -476,3 +476,12 @@ html, body {
   color: var(--paid-fg, #1c5c2e);
   font-size: 14px;
 }
+
+/* A number worth tapping should look like one. */
+.stat-open { cursor: pointer; transition: background 0.15s, box-shadow 0.15s; }
+.stat-open:hover, .stat-open:focus-visible {
+  background: var(--card-hover, #f3ede3);
+  box-shadow: 0 0 0 2px var(--accent, #8b1a1a) inset;
+  outline: none;
+}
+.stat-more { margin-top: 6px; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; opacity: .65; }
