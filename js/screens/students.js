@@ -652,7 +652,7 @@ function birthdays(students) {
       `Happy Birthday, ${nice}! 🎉\n\n` +
       `Wishing you a wonderful year ahead and lots of good training. ` +
       `We are proud to have you at Nippon Karate Club.\n\n` +
-      `— Sensei Pooja and everyone at Nippon Fit`;
+      `— Renshi Pooja and everyone at Nippon Fit`;
 
     const digits = phoneDigits(s.parent_phone || "");
     const link = digits.length === 10

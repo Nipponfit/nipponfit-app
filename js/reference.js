@@ -157,6 +157,14 @@ export function sessionsPerWeek(student, ref, addonPlanIds = []) {
    Never counts weeks before they joined, or weeks they were away on a
    break. Mirrors sessions_entitled() in the database line for line, so
    the app and any report always agree. */
+/* The day a dojo's timetable began running, if it has one. Classes with
+   no first day have always run, so the dojo has no opening date. */
+export function dojoOpenedOn(student, ref) {
+  const mine = (ref.sessions || []).filter((s) => s.dojo_id === student.dojo_id && s.active !== false);
+  if (mine.length === 0 || mine.some((s) => !s.starts_on)) return null;
+  return mine.map((s) => String(s.starts_on).slice(0, 10)).sort()[0];
+}
+
 export function sessionsEntitled(student, ref, addonPlanIds, from, to) {
   const perWeek = sessionsPerWeek(student, ref, addonPlanIds);
   if (!perWeek) return 0;
@@ -164,7 +172,16 @@ export function sessionsEntitled(student, ref, addonPlanIds, from, to) {
   const day = (d) => new Date(String(d).slice(0, 10) + "T00:00:00").getTime();
   const DAY = 86400000;
 
-  const starts = Math.max(day(from), student.joined_on ? day(student.joined_on) : day(from));
+  /* Three things decide when the clock starts: the period asked about,
+     the day the child joined, and the day their dojo actually opened.
+     Koramangala begins in September, so a child there is not marked
+     down for the Wednesdays of a summer when nothing was running. */
+  const dojoOpened = dojoOpenedOn(student, ref);
+  const starts = Math.max(
+    day(from),
+    student.joined_on ? day(student.joined_on) : day(from),
+    dojoOpened ? day(dojoOpened) : day(from)
+  );
   const ends = Math.min(day(to), Date.now());
   if (ends < starts) return 0;
 

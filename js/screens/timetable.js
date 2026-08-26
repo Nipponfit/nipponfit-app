@@ -229,6 +229,7 @@ function weeklyClasses(ref, teachers, save) {
       weekday: s.weekday,
       time: `${s.start_time}–${s.end_time}`,
       klass: s.label || "Class",
+      starts: s.starts_on ? "from " + shortDate(s.starts_on) : "—",
       instructor: byId[s.instructor_id] || "not set",
       action: button("Remove", () => {
         if (!confirm(`Remove the ${s.weekday} ${s.start_time} class at ${ref.dojoById[s.dojo_id]?.name}?`)) return;
@@ -242,6 +243,10 @@ function weeklyClasses(ref, teachers, save) {
   const from = input({ type: "text", value: "6:30 PM" });
   const until = input({ type: "text", value: "7:30 PM" });
   const label = input({ placeholder: "Leave empty for a normal class" });
+  /* Leave empty for a class that has always run. Fill it in when a dojo
+     opens later, so the register does not offer the class for months
+     when nobody was teaching it. */
+  const begins = input({ type: "date" });
   const who = el("select", { class: "input" },
     el("option", { value: "" }, "Not decided yet"),
     ...teachers.map((p) => el("option", { value: p.id }, p.full_name)));
@@ -259,6 +264,7 @@ function weeklyClasses(ref, teachers, save) {
         end_time: until.value.trim(),
         label: label.value.trim() || null,
         instructor_id: who.value || null,
+        starts_on: begins.value || null,
         active: true,
       }),
       "Weekly class added.",
@@ -275,6 +281,7 @@ function weeklyClasses(ref, teachers, save) {
         { key: "weekday", label: "Day" },
         { key: "time", label: "Time" },
         { key: "klass", label: "Class" },
+        { key: "starts", label: "Runs" },
         { key: "instructor", label: "Instructor" },
         { key: "action", label: "" },
       ],
@@ -289,6 +296,8 @@ function weeklyClasses(ref, teachers, save) {
       el("label", { class: "field", style: "flex:1" }, el("span", { class: "field-label" }, "Until"), until)),
     el("label", { class: "field" }, el("span", { class: "field-label" }, "Class name"), label),
     el("label", { class: "field" }, el("span", { class: "field-label" }, "Instructor"), who),
+    el("label", { class: "field" },
+       el("span", { class: "field-label" }, "First day (leave empty if it has always run)"), begins),
     problem,
     add
   );

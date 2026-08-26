@@ -68,6 +68,9 @@ function render({ ref, roster, holidays, extras, addons }, me) {
 
     const weekly = ref.sessions
       .filter((s) => s.dojo_id === dojoId && s.active !== false && s.weekday === weekday)
+      /* A class that had not started yet was never taught, so it does
+         not belong in the register for that day. */
+      .filter((s) => !s.starts_on || String(s.starts_on).slice(0, 10) <= date)
       .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
       .map((s) => el("option", { value: s.id }, `${s.label || "Class"} · ${s.start_time}–${s.end_time}`));
 
