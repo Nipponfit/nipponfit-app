@@ -161,6 +161,12 @@ function childCard(student, { ref, attendance, history, medals, addons, students
         absent: wasAbsent,
         entitled: awayWhole ? 0 : owed,
         state,
+        /* How far below their own plan they fell. NOT the number of
+           absent marks: the register lists a child for every class the
+           dojo runs, so a child on two a week is marked absent for the
+           two they were never going to attend. Counting those as missed
+           classes is an accusation nobody meant to make. */
+        short: state === "counted" ? Math.max(0, owed - wasPresent) : 0,
         recorded: state === "counted",
         rate: state === "counted" ? attendancePercent(wasPresent, owed) : null,
       });
@@ -412,13 +418,24 @@ function monthsCard(student, months, lifetimePresent, lifetimeEntitled) {
 
   return card(
     `${student.full_name} — month by month`,
-    "Tap the percentage again to close this.",
+    "Came to = classes they attended. Fee covers = classes their plan pays for that " +
+      "month. Tap the percentage again to close this.",
     table(
       [
         { key: "label", label: "Month" },
-        { key: "present", label: "Came", align: "num", format: (v, r) => (r.recorded ? v : "—") },
-        { key: "absent", label: "Missed", align: "num", format: (v, r) => (r.recorded ? v : "—") },
-        { key: "entitled", label: "Classes", align: "num", format: (v, r) => (r.state === "break" ? "—" : v) },
+        { key: "present", label: "Came to", align: "num", format: (v, r) => (r.recorded ? v : "—") },
+        {
+          key: "entitled",
+          label: "Fee covers",
+          align: "num",
+          format: (v, r) => (r.state === "break" ? "—" : v),
+        },
+        {
+          key: "short",
+          label: "Short by",
+          align: "num",
+          format: (v, r) => (r.state === "counted" && v > 0 ? v : "—"),
+        },
         {
           key: "rate",
           label: "Attendance",
@@ -439,6 +456,11 @@ function monthsCard(student, months, lifetimePresent, lifetimeEntitled) {
         ? "No classes recorded yet."
         : `Since joining: ${lifetimePresent} of ${lifetimeEntitled} classes, ${lifetime}% overall. ` +
           "Grading opens at 75%." +
+          (months.some((m) => m.state === "counted" && m.present > m.entitled)
+            ? " Some months show more classes attended than the plan covers — extra " +
+              "training is welcome and simply counts as full attendance."
+            : "") +
+          " The current month counts only up to today, so it is smaller than a full month." +
           (months.some((m) => m.state === "break") ? " Months on a break are not counted." : "") +
           (months.some((m) => m.state === "unmarked")
             ? " “Not marked” means the register was not filled in that month, not that your child was away."

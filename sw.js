@@ -4,7 +4,7 @@
    Network first: you always get the newest version when there is a
    connection, and the last one that worked when there is not. */
 
-const CACHE = "nipponfit-v2-22";
+const CACHE = "nipponfit-v2-23";
 
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./manifest.json",
