@@ -454,3 +454,7 @@ html, body {
 .tick-body { display: flex; flex-direction: column; min-width: 0; }
 .tick-name { font-weight: 600; }
 .tick-row:has(.tick:checked) .tick-name { color: var(--green); }
+
+/* A missed box is not a breakage — say it plainly, without the alarm. */
+.error-box.gentle strong { display: none; }
+.error-box.gentle { border-left-color: var(--warn, #c99700); }

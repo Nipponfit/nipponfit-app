@@ -82,14 +82,23 @@ export const card = (title, sub, ...body) =>
 export const spinner = (label = "Loading…") =>
   el("div", { class: "loading" }, el("div", { class: "spinner" }), el("p", {}, label));
 
+/* A failure the user needs to see.
+
+   Given an Error, it says "Something went wrong" and shows the message,
+   because the user did nothing wrong and needs to know it broke. Given
+   plain text, it shows only that text — for the times the user simply
+   missed a box, where "Something went wrong" would be alarming and
+   untrue. */
 export const errorBox = (err) =>
-  el(
-    "div",
-    { class: "error-box" },
-    el("strong", {}, "Something went wrong"),
-    el("p", {}, err?.message || String(err)),
-    err?.hint && el("p", { class: "muted" }, err.hint)
-  );
+  typeof err === "string"
+    ? el("div", { class: "error-box gentle" }, el("p", {}, err))
+    : el(
+        "div",
+        { class: "error-box" },
+        el("strong", {}, "Something went wrong"),
+        el("p", {}, err?.message || String(err)),
+        err?.hint && el("p", { class: "muted" }, err.hint)
+      );
 
 export const empty = (message) => el("p", { class: "empty" }, message);
 

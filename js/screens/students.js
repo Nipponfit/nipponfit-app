@@ -8,7 +8,7 @@
 
 import * as db from "../db.js";
 import { reference, feeFor, beltFor, siblingsOf } from "../reference.js";
-import { el, card, table, input, button, money, shortDate, section, toast, errorBox, empty, phoneDigits } from "../ui.js";
+import { el, card, table, input, button, fill, money, shortDate, section, toast, errorBox, empty, phoneDigits } from "../ui.js";
 
 export async function studentsScreen({ refresh }) {
   return el("div", {}, section(load, (data) => render(data, refresh), { label: "Fetching students…" }));
@@ -479,4 +479,124 @@ function eliteToggle(student, ref, addons, refresh) {
          : `Not in the Elite squad. Adding them costs ${money(elite.fee)} a quarter on top of their plan.`),
     problem,
     go);
+}
+
+
+/* Taking on a new student.
+
+   The ID card number is offered for you — the next free one in the
+   AC/23/014 series, worked out by the database rather than remembered.
+   The parent goes on the club list at the same time, so a login can be
+   made for them on the People tab straight afterwards. */
+function addStudent(ref, refresh) {
+  const open = el("div", {});
+  const problem = el("div", {});
+
+  const name = input({ placeholder: "Child's full name" });
+  const card_no = input({ placeholder: "Fetching the next one…" });
+  const guardian = input({ placeholder: "Parent or guardian name" });
+  const phone = input({ inputmode: "tel", placeholder: "Parent's 10-digit mobile", autocapitalize: "off" });
+  const phone2 = input({ inputmode: "tel", placeholder: "Second parent's mobile (optional)", autocapitalize: "off" });
+  const email = input({ type: "email", placeholder: "Parent's email (optional)", autocapitalize: "off" });
+  const dob = input({ type: "date" });
+  const blood = input({ placeholder: "e.g. O+" });
+  const joined = input({ type: "date", value: new Date().toISOString().slice(0, 10) });
+
+  const dojo = el("select", { class: "input" },
+    ...ref.dojos.filter((d) => d.active !== false).map((d) => el("option", { value: d.id }, d.name)));
+  const plan = el("select", { class: "input" });
+  const belt = el("select", { class: "input" },
+    ...ref.belts.map((b) => el("option", { value: b.id, selected: b.is_start }, `${b.name} (${b.kyu})`)));
+
+  function plansForDojo() {
+    const list = ref.plans.filter((p) => p.dojo_id === dojo.value && !p.is_addon && p.active !== false);
+    fill(plan, ...(list.length
+      ? list.map((p) => el("option", { value: p.id }, `${p.label} — ${money(p.fee)}`))
+      : [el("option", { value: "" }, "This dojo has no plans set up")]));
+  }
+  dojo.addEventListener("change", plansForDojo);
+  plansForDojo();
+
+  /* Ask the database for the next card number rather than guessing. */
+  db.rpc("next_id_card")
+    .then((n) => { if (typeof n === "string") card_no.value = n; })
+    .catch(() => { card_no.placeholder = "e.g. AC/23/014-85"; });
+
+  const save = button("Add this student", async () => {
+    problem.replaceChildren();
+
+    if (!name.value.trim()) return problem.append(errorBox("Enter the child's name."));
+    if (!card_no.value.trim()) return problem.append(errorBox("Enter an ID card number."));
+    if (phoneDigits(phone.value).length !== 10) {
+      return problem.append(errorBox("Enter the parent's 10-digit mobile number."));
+    }
+
+    save.disabled = true;
+    save.textContent = "Adding…";
+    try {
+      const mobile = "+91" + phoneDigits(phone.value);
+      const mobile2 = phoneDigits(phone2.value).length === 10 ? "+91" + phoneDigits(phone2.value) : null;
+
+      await db.insert("students", {
+        id_card: card_no.value.trim(),
+        full_name: name.value.trim().toUpperCase(),
+        guardian_name: guardian.value.trim() || null,
+        date_of_birth: dob.value || null,
+        blood_group: blood.value.trim() || null,
+        parent_phone: mobile,
+        parent2_phone: mobile2,
+        parent_email: email.value.trim().toLowerCase() || null,
+        dojo_id: dojo.value,
+        plan_id: plan.value || null,
+        belt_id: belt.value,
+        joined_on: joined.value || null,
+      });
+
+      /* Put the parents on the club list so logins can be made. */
+      const parents = [{ phone: mobile, role: "parent", full_name: guardian.value.trim() || null }];
+      if (mobile2) parents.push({ phone: mobile2, role: "parent", full_name: guardian.value.trim() || null });
+      await db.upsert("allowed_users", parents, "phone").catch(() => {});
+
+      toast(`${name.value.trim()} added. Give the parent a login on the People tab.`);
+      name.value = ""; guardian.value = ""; phone.value = ""; phone2.value = "";
+      email.value = ""; blood.value = ""; dob.value = "";
+      refresh();
+    } catch (err) {
+      problem.append(
+        errorBox(
+          String(err.message || "").includes("duplicate")
+            ? "That ID card number is already used by another student."
+            : err
+        )
+      );
+    }
+    save.disabled = false;
+    save.textContent = "Add this student";
+  }, "wide");
+
+  const form = el("div", { style: "display:none" },
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Child's name"), name),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "ID card number"), card_no),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Dojo"), dojo),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Fee plan"), plan),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Belt"), belt),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "First day at the dojo"), joined),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Parent or guardian"), guardian),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Parent's mobile"), phone),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Second parent's mobile"), phone2),
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Parent's email"), email),
+    el("div", { style: "display:flex;gap:10px" },
+      el("label", { class: "field", style: "flex:1" }, el("span", { class: "field-label" }, "Date of birth"), dob),
+      el("label", { class: "field", style: "flex:1" }, el("span", { class: "field-label" }, "Blood group"), blood)),
+    problem,
+    save);
+
+  const toggle = button("Add a new student", () => {
+    const showing = form.style.display !== "none";
+    form.style.display = showing ? "none" : "block";
+    toggle.textContent = showing ? "Add a new student" : "Close";
+  }, "wide");
+
+  fill(open, toggle, form);
+  return card("New student", "Everything needed to enrol a child. The parent can be given a login straight afterwards.", open);
 }
