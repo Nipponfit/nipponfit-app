@@ -466,3 +466,13 @@ html, body {
 }
 .birthday:last-child { border-bottom: 0; }
 .birthday.is-today strong { color: var(--accent, #8b1a1a); }
+
+/* A fee that has been received — quiet, green, and final. */
+.paid-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--paid-bg, #e7f4ea);
+  color: var(--paid-fg, #1c5c2e);
+  font-size: 14px;
+}

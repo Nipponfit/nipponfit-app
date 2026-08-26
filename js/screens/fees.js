@@ -120,15 +120,9 @@ function chaseCard(row, refresh) {
     )
   );
 
-  /* UPI — opens their payment app with the amount already in it */
-  if (upiId) {
-    const upi =
-      `upi://pay?pa=${encodeURIComponent(upiId)}` +
-      `&pn=${encodeURIComponent("Nippon Karate Club")}` +
-      `&am=${amount}&cu=INR` +
-      `&tn=${encodeURIComponent(row.student + " fee")}`;
-    actions.append(el("a", { class: "btn small quiet", href: upi }, "Open UPI payment"));
-  }
+  /* No UPI button here on purpose. It would open YOUR payment app to pay
+     the club from your own phone, which is nobody's intention. The
+     parent gets that button, on their own My child screen. */
 
   actions.append(
     button(
@@ -174,7 +168,8 @@ function chaseCard(row, refresh) {
       ? el(
           "p",
           { class: "muted", style: "margin-top:10px" },
-          "Add your UPI ID to config.js as UPI_ID to show a one-tap payment link here."
+          "No UPI ID is set, so parents have no pay-by-UPI button on their own screen. " +
+          "Add it to config.js as UPI_ID."
         )
       : null
   );

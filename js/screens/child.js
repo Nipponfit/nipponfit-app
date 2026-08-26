@@ -146,7 +146,7 @@ function childCard(student, { ref, attendance, history, medals, addons, students
              "Call the dojo when you would like to start again.")
         )
       : feeCard(fee, student),
-    gradingCard(student, belt, next, rate),
+    gradingCard(student, belt, next, rate, present, entitled),
 
     myHistory.length > 0 &&
       card(
@@ -206,14 +206,27 @@ function feeCard(fee, student) {
       ? el("p", { class: "muted", style: "margin-top:10px" },
            "\u20B91,000 is taken off because more than one child from your family trains with us.")
       : null,
-    student.fee_state !== "paid"
-      ? el("p", { class: "muted", style: "margin-top:6px" },
-           "Please pay at the dojo or by UPI. The dojo marks it paid once received.")
-      : null
+    student.fee_state === "paid"
+      ? el("p", { class: "paid-note", style: "margin-top:10px" },
+           "✓ Received, thank you. Nothing to pay at the moment.")
+      : el(
+          "div",
+          { style: "margin-top:12px" },
+          feeUpiLink(fee.total, student)
+            ? el("a", { class: "btn", href: feeUpiLink(fee.total, student) },
+                 `Pay ${money(fee.total)} by UPI`)
+            : null,
+          el("p", { class: "muted", style: "margin-top:8px" },
+             "You can also pay at the dojo. Either way the dojo marks it received, " +
+             "and this page will say so.")
+        )
   );
 }
 
-function gradingCard(student, belt, next, rate) {
+/* present and entitled must be handed in. They belong to the child, not
+   to this function, and reaching for them without them being passed is
+   what blanked every parent's screen. */
+function gradingCard(student, belt, next, rate, present, entitled) {
   if (!next || student.on_break) return null;
 
   const fee = Number(next.grading_fee) || 0;
@@ -287,5 +300,26 @@ function gradingCard(student, belt, next, rate) {
             )
       )
     )
+  );
+}
+
+
+/* The fee, ready to pay, in the parent's own payment app.
+
+   A UPI link costs the club nothing — no gateway, no percentage, no
+   account to open. It opens GPay, PhonePe or whatever they use with the
+   amount and the reference already filled in. This belongs to the
+   parent: staff have no use for a button that pays a bill on somebody
+   else's phone. */
+function feeUpiLink(amount, student) {
+  const upiId = CFG.UPI_ID;
+  const rupees = Math.round(Number(amount) || 0);
+  if (!upiId || rupees <= 0) return null;
+
+  return (
+    `upi://pay?pa=${encodeURIComponent(upiId)}` +
+    `&pn=${encodeURIComponent("Nippon Karate Club")}` +
+    `&am=${rupees}&cu=INR` +
+    `&tn=${encodeURIComponent(student.id_card ? student.id_card + " fee" : student.full_name + " fee")}`
   );
 }
