@@ -62,7 +62,31 @@ export const shortDate = (d) =>
       })
     : "Not set";
 
-export const today = () => new Date().toISOString().slice(0, 10);
+/* A date as the dojo sees it, not as Greenwich sees it.
+
+   toISOString converts to UTC first, and India is five and a half hours
+   ahead, so local midnight on the 1st of a month is half past six on
+   the evening of the LAST day of the month before. Used on a date, that
+   silently gives you yesterday — and used on a month, the month before.
+   These build the string from the local parts instead. */
+export const localDate = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+export const localMonth = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+export const today = () => localDate();
+
+/* "Feb 2026" back into "2026-02", without going near a timezone. */
+const MONTH_NAMES = ["jan", "feb", "mar", "apr", "may", "jun",
+                     "jul", "aug", "sep", "oct", "nov", "dec"];
+
+export function monthKey(label) {
+  const m = String(label).trim().toLowerCase().match(/^([a-z]+)\s+(\d{4})$/);
+  if (!m) return null;
+  const i = MONTH_NAMES.indexOf(m[1].slice(0, 3));
+  return i < 0 ? null : `${m[2]}-${String(i + 1).padStart(2, "0")}`;
+}
 
 export const phoneDigits = (p) => String(p || "").replace(/\D/g, "").slice(-10);
 

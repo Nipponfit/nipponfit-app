@@ -14,7 +14,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { reference } from "../reference.js";
+import { reference, dojoOpenOn } from "../reference.js";
 import { el, card, button, fill, section, toast, errorBox, empty, today, shortDate } from "../ui.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -40,9 +40,20 @@ function render({ ref, roster, holidays, extras, addons }, me) {
   const mySessions = ref.sessions.filter((s) => s.instructor_id === me.id);
   const startDojo = mySessions[0]?.dojo_id || ref.dojos[0].id;
 
-  const dojoPicker = el("select", { class: "input" },
-    ...ref.dojos.map((d) => el("option", { value: d.id, selected: d.id === startDojo }, d.name)));
+  const dojoPicker = el("select", { class: "input" });
   const datePicker = el("input", { class: "input", type: "date", value: today() });
+
+  /* Which dojos existed on the chosen day. Redrawn whenever the date
+     changes, so a dojo that opens in September stops appearing against
+     a day in March. */
+  function refreshDojos() {
+    const wanted = dojoPicker.value || startDojo;
+    const open = ref.dojos.filter((d) => dojoOpenOn(d, datePicker.value));
+    fill(dojoPicker, ...(open.length
+      ? open.map((d) => el("option", { value: d.id, selected: d.id === wanted }, d.name))
+      : [el("option", { value: "" }, "No dojo was open on this day")]));
+    if (open.some((d) => d.id === wanted)) dojoPicker.value = wanted;
+  }
   const classPicker = el("select", { class: "input" });
 
   const notice = el("div", {});
@@ -307,8 +318,10 @@ function render({ ref, roster, holidays, extras, addons }, me) {
   }
 
   dojoPicker.addEventListener("change", refreshClasses);
-  datePicker.addEventListener("change", refreshClasses);
+  /* The date decides which dojos existed, which decides which classes. */
+  datePicker.addEventListener("change", () => { refreshDojos(); refreshClasses(); });
   classPicker.addEventListener("change", refreshList);
+  refreshDojos();
   refreshClasses();
 
   return el(

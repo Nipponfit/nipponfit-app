@@ -10,7 +10,7 @@
 
 import * as db from "../db.js";
 import { reference, sessionsEntitled, attendancePercent } from "../reference.js";
-import { el, card, table, stat, section, empty } from "../ui.js";
+import { el, card, table, stat, section, empty, localDate } from "../ui.js";
 
 const GRADING_THRESHOLD = 75;
 
@@ -86,8 +86,7 @@ function render({ attendance, students, ref, addons }) {
         const mineAddons = addons.filter((a) => a.student_id === id).map((a) => a.plan_id);
         const first = month + "-01";
         const start = new Date(first);
-        const last = new Date(start.getFullYear(), start.getMonth() + 1, 0)
-          .toISOString().slice(0, 10);
+        const last = localDate(new Date(start.getFullYear(), start.getMonth() + 1, 0));
         const entitled = student ? sessionsEntitled(student, ref, mineAddons, first, last) : 0;
 
         return {
@@ -186,8 +185,7 @@ function monthByDojoCard(attendance, months, ref, students, addons) {
   const entitledFor = (ids, month) => {
     const first = month + "-01";
     const start = new Date(first);
-    const last = new Date(start.getFullYear(), start.getMonth() + 1, 0)
-      .toISOString().slice(0, 10);
+    const last = localDate(new Date(start.getFullYear(), start.getMonth() + 1, 0));
     let total = 0;
     for (const id of ids) {
       const s = studentById[id];

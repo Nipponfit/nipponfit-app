@@ -8,7 +8,7 @@
 
 import * as db from "../db.js";
 import { reference, feeFor, beltFor, siblingsOf } from "../reference.js";
-import { el, card, table, input, button, fill, money, shortDate, section, toast, errorBox, empty, phoneDigits } from "../ui.js";
+import { el, card, table, input, button, fill, money, shortDate, section, toast, errorBox, empty, phoneDigits, localDate } from "../ui.js";
 
 export async function studentsScreen({ refresh }) {
   return el("div", {}, section(load, (data) => render(data, refresh), { label: "Fetching students…" }));
@@ -87,6 +87,8 @@ function render({ students, ref, addons }, refresh) {
     "div",
     {},
     detail,
+    birthdays(active),
+    addStudent(ref, refresh),
     card(
       "Students",
       null,
@@ -410,7 +412,7 @@ function breakDatesEditor(student, change) {
   const save = button("Save these dates", async () => {
     save.disabled = true;
     save.textContent = "Saving\u2026";
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDate();
     const away = from.value && from.value <= today && (!to.value || to.value >= today);
     await change(
       { break_from: from.value || null, break_to: to.value || null, on_break: Boolean(away) },
@@ -500,7 +502,7 @@ function addStudent(ref, refresh) {
   const email = input({ type: "email", placeholder: "Parent's email (optional)", autocapitalize: "off" });
   const dob = input({ type: "date" });
   const blood = input({ placeholder: "e.g. O+" });
-  const joined = input({ type: "date", value: new Date().toISOString().slice(0, 10) });
+  const joined = input({ type: "date", value: localDate() });
 
   const dojo = el("select", { class: "input" },
     ...ref.dojos.filter((d) => d.active !== false).map((d) => el("option", { value: d.id }, d.name)));
@@ -614,11 +616,6 @@ function addStudent(ref, refresh) {
 
    Only children who are still training appear. Nobody wants a birthday
    message about a child who left in March. */
-/* toISOString would shift the date back a day in India, so the date is
-   assembled from the local parts instead. */
-const localDate = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
 function birthdays(students) {
   const today = new Date();
   const todayKey = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;

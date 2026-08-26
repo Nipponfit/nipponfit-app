@@ -6,7 +6,8 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { el, card, table, stat, money, button, input, fill, shortDate, section, toast, errorBox, empty, phoneDigits } from "../ui.js";
+import { dojoOpenOn } from "../reference.js";
+import { el, card, table, stat, money, button, input, fill, shortDate, section, toast, errorBox, empty, phoneDigits, today, monthKey } from "../ui.js";
 
 export async function payoutsScreen({ refresh }) {
   return el("div", {}, section(load, (data) => render(data, refresh), { label: "Adding up instructor pay…" }));
@@ -103,7 +104,12 @@ function monthCard(group, refresh) {
       settle.disabled = true;
       settle.textContent = "Recording…";
       try {
-        const month = new Date(group.month + " 1").toISOString().slice(0, 7);
+        /* "Feb 2026" -> "2026-02". Doing this through a Date and
+           toISOString marked the month BEFORE as paid, so every payout
+           she recorded landed on the wrong month and the one she meant
+           still showed as owed. */
+        const month = monthKey(group.month);
+        if (!month) throw new Error(`Could not read the month "${group.month}".`);
         const result = await db.rpc("mark_paid", {
           p_instructor_phone: phoneDigits(group.phone),
           p_month: month,
@@ -149,9 +155,21 @@ function recordClass(instructors, dojos, refresh) {
     ...instructors.map((i) =>
       el("option", { value: phoneDigits(i.phone) },
          i.full_name + (i.role === "founder" ? " (you)" : ""))));
-  const where = el("select", { class: "input" },
-    ...dojos.filter((d) => d.active !== false).map((d) => el("option", { value: d.name }, d.name)));
-  const when = input({ type: "date", value: new Date().toISOString().slice(0, 10) });
+  const where = el("select", { class: "input" });
+  const when = input({ type: "date", value: today() });
+
+  /* Only dojos that were running on the chosen day. Koramangala opens
+     in September and has no business being offered for a day in March. */
+  function refreshDojos() {
+    const wanted = where.value;
+    const open = dojos.filter((d) => dojoOpenOn(d, when.value));
+    fill(where, ...(open.length
+      ? open.map((d) => el("option", { value: d.name }, d.name))
+      : [el("option", { value: "" }, "No dojo was open on this day")]));
+    if (open.some((d) => d.name === wanted)) where.value = wanted;
+  }
+  when.addEventListener("change", refreshDojos);
+  refreshDojos();
   const problem = el("div", {});
 
   const go = button("Record this class", async () => {

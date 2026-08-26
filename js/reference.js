@@ -157,6 +157,19 @@ export function sessionsPerWeek(student, ref, addonPlanIds = []) {
    Never counts weeks before they joined, or weeks they were away on a
    break. Mirrors sessions_entitled() in the database line for line, so
    the app and any report always agree. */
+/* Was this dojo running on this date?
+
+   A dojo that opens later should not be offered for a day before it
+   existed. Koramangala opens on 2 September, so it has no business
+   appearing in the register for a Wednesday in March. A dojo with no
+   opening day has always run. */
+export function dojoOpenOn(dojo, date) {
+  if (!dojo) return false;
+  if (dojo.active === false) return false;
+  if (!dojo.opens_on) return true;
+  return String(dojo.opens_on).slice(0, 10) <= String(date).slice(0, 10);
+}
+
 /* The day a dojo's timetable began running, if it has one. Classes with
    no first day have always run, so the dojo has no opening date. */
 export function dojoOpenedOn(student, ref) {

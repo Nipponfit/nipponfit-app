@@ -12,7 +12,7 @@
 import * as db from "../db.js";
 import { reference, feeFor, beltFor, siblingsOf, sessionsEntitled, sessionsPerWeek, attendancePercent } from "../reference.js";
 import { gradingFormUrl, gradingFeeUpiLink } from "../jotform.js";
-import { el, card, table, stat, money, shortDate, button, section, empty, errorBox } from "../ui.js";
+import { el, card, table, stat, money, shortDate, button, section, empty, errorBox, localDate } from "../ui.js";
 
 const CFG = window.NIPPONFIT_CONFIG || {};
 
@@ -96,7 +96,7 @@ function childCard(student, { ref, attendance, history, medals, addons, students
   const present = mine.filter((a) => a.present).length;
   const perWeek = sessionsPerWeek(student, ref, myAddons);
   const entitled = sessionsEntitled(
-    student, ref, myAddons, student.joined_on || "2026-01-01", new Date().toISOString().slice(0, 10)
+    student, ref, myAddons, student.joined_on || "2026-01-01", localDate()
   );
   const rate = attendancePercent(present, entitled);
 
