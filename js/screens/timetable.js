@@ -15,7 +15,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { reference, forget } from "../reference.js";
+import { reference, forget, dojoOpenOn } from "../reference.js";
 import { el, card, table, input, button, fill, money, section, toast, errorBox, empty, today, shortDate } from "../ui.js";
 
 const DAY_ORDER = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
@@ -73,8 +73,20 @@ function render({ ref, extras, holidays, people }, me, refresh) {
 /* ------------------------------------------------------------------ */
 
 function addExtraSession(ref, teachers, save) {
-  const dojo = el("select", { class: "input" }, ...ref.dojos.map((d) => el("option", { value: d.id }, d.name)));
+  const dojo = el("select", { class: "input" });
   const when = input({ type: "date", value: today() });
+
+  /* A dojo that had not opened cannot hold an extra class either. */
+  function refreshDojos() {
+    const wanted = dojo.value;
+    const open = ref.dojos.filter((d) => dojoOpenOn(d, when.value));
+    fill(dojo, ...(open.length
+      ? open.map((d) => el("option", { value: d.id }, d.name))
+      : [el("option", { value: "" }, "No dojo was open on this day")]));
+    if (open.some((d) => d.id === wanted)) dojo.value = wanted;
+  }
+  when.addEventListener("change", refreshDojos);
+  refreshDojos();
   const from = input({ type: "text", value: "6:30 PM" });
   const until = input({ type: "text", value: "7:30 PM" });
   const who = el("select", { class: "input" },
@@ -122,9 +134,20 @@ function addExtraSession(ref, teachers, save) {
 /* ------------------------------------------------------------------ */
 
 function declareHoliday(ref, me, save) {
-  const dojo = el("select", { class: "input" }, ...ref.dojos.map((d) => el("option", { value: d.id }, d.name)));
+  const dojo = el("select", { class: "input" });
   const when = input({ type: "date", value: today() });
   const which = el("select", { class: "input" });
+
+  /* Only dojos that were running on the chosen day. You cannot cancel a
+     class at a dojo that had not opened. */
+  function refreshDojos() {
+    const wanted = dojo.value;
+    const open = ref.dojos.filter((d) => dojoOpenOn(d, when.value));
+    fill(dojo, ...(open.length
+      ? open.map((d) => el("option", { value: d.id }, d.name))
+      : [el("option", { value: "" }, "No dojo was open on this day")]));
+    if (open.some((d) => d.id === wanted)) dojo.value = wanted;
+  }
   const why = input({ placeholder: "e.g. Republic Day" });
   const problem = el("div", {});
 
@@ -132,6 +155,8 @@ function declareHoliday(ref, me, save) {
     const weekday = WEEKDAYS[new Date(when.value + "T00:00:00").getDay()];
     const classes = ref.sessions
       .filter((s) => s.dojo_id === dojo.value && s.active !== false && s.weekday === weekday)
+      /* A class that had not started yet cannot be cancelled. */
+      .filter((s) => !s.starts_on || String(s.starts_on).slice(0, 10) <= when.value)
       .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)));
     fill(which,
       el("option", { value: "" }, "The whole day — every class at this dojo"),
@@ -139,7 +164,8 @@ function declareHoliday(ref, me, save) {
   }
 
   dojo.addEventListener("change", refreshClasses);
-  when.addEventListener("change", refreshClasses);
+  when.addEventListener("change", () => { refreshDojos(); refreshClasses(); });
+  refreshDojos();
   refreshClasses();
 
   const go = button("Declare this a holiday", () => {
