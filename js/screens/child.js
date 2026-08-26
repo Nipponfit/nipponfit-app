@@ -136,20 +136,33 @@ function childCard(student, { ref, attendance, history, medals, addons, students
       const wasAbsent = inMonth.filter((a) => !a.present).length;
       const owed = sessionsEntitled(child, ref, myAddons, first, last);
 
-      /* A month with no register marked at all is not a month the child
-         missed — it is a month nobody wrote down. Showing 0% there
-         blames the child for the dojo's paperwork, so it shows nothing
-         and says so. */
+      /* Three different reasons a month can have no percentage, and a
+         parent deserves to be told which:
+
+           on a break   they were away and were not billed, so there was
+                        nothing to attend
+           not marked   nobody filled in the register. Showing 0% here
+                        blames the child for the dojo's paperwork
+           —            the month has not happened yet
+
+         Only the first two can occur in a list that stops at today. */
+      const awayWhole =
+        Boolean(child.break_from) &&
+        String(child.break_from).slice(0, 10) <= first &&
+        (!child.break_to || String(child.break_to).slice(0, 10) >= last);
+
       const nothingRecorded = wasPresent + wasAbsent === 0;
+      const state = awayWhole ? "break" : nothingRecorded ? "unmarked" : "counted";
 
       out.push({
         key,
         label: cursor.toLocaleDateString("en-IN", { month: "long", year: "numeric" }),
         present: wasPresent,
         absent: wasAbsent,
-        entitled: owed,
-        recorded: !nothingRecorded,
-        rate: nothingRecorded ? null : attendancePercent(wasPresent, owed),
+        entitled: awayWhole ? 0 : owed,
+        state,
+        recorded: state === "counted",
+        rate: state === "counted" ? attendancePercent(wasPresent, owed) : null,
       });
       cursor.setMonth(cursor.getMonth() + 1);
     }
@@ -405,14 +418,15 @@ function monthsCard(student, months, lifetimePresent, lifetimeEntitled) {
         { key: "label", label: "Month" },
         { key: "present", label: "Came", align: "num", format: (v, r) => (r.recorded ? v : "—") },
         { key: "absent", label: "Missed", align: "num", format: (v, r) => (r.recorded ? v : "—") },
-        { key: "entitled", label: "Classes", align: "num" },
+        { key: "entitled", label: "Classes", align: "num", format: (v, r) => (r.state === "break" ? "—" : v) },
         {
           key: "rate",
           label: "Attendance",
           align: "num",
           format: (v, row) =>
             v === null
-              ? el("span", { class: "muted" }, row.recorded ? "—" : "not marked")
+              ? el("span", { class: "muted" },
+                   row.state === "break" ? "on a break" : "not marked")
               : el("span", { class: `pill ${v >= 75 ? "paid" : "due"}` }, v + "%"),
         },
       ],
@@ -424,7 +438,11 @@ function monthsCard(student, months, lifetimePresent, lifetimeEntitled) {
       lifetime === null
         ? "No classes recorded yet."
         : `Since joining: ${lifetimePresent} of ${lifetimeEntitled} classes, ${lifetime}% overall. ` +
-          "Grading opens at 75%."
+          "Grading opens at 75%." +
+          (months.some((m) => m.state === "break") ? " Months on a break are not counted." : "") +
+          (months.some((m) => m.state === "unmarked")
+            ? " “Not marked” means the register was not filled in that month, not that your child was away."
+            : "")
     )
   );
 }
