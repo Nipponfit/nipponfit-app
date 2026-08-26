@@ -600,3 +600,93 @@ function addStudent(ref, refresh) {
   fill(open, toggle, form);
   return card("New student", "Everything needed to enrol a child. The parent can be given a login straight afterwards.", open);
 }
+
+
+/* Birthdays.
+
+   WhatsApp will not let anyone send a message from a program without a
+   paid business account and a message template Meta has approved in
+   advance. So this does the next best thing, which is arguably the
+   better thing: it tells you whose birthday it is, and gives you a
+   button that opens WhatsApp with the message already written to the
+   right parent. You read it, change it if you like, and send. One tap,
+   nothing to set up, and it comes from you rather than from a robot.
+
+   Only children who are still training appear. Nobody wants a birthday
+   message about a child who left in March. */
+/* toISOString would shift the date back a day in India, so the date is
+   assembled from the local parts instead. */
+const localDate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+function birthdays(students) {
+  const today = new Date();
+  const todayKey = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  const soon = students
+    .filter((s) => s.date_of_birth && !s.on_break)
+    .map((s) => {
+      const dob = new Date(s.date_of_birth + "T00:00:00");
+      const key = `${String(dob.getMonth() + 1).padStart(2, "0")}-${String(dob.getDate()).padStart(2, "0")}`;
+
+      /* How many days until it comes round again. Their birthday this
+         year; if that has gone, next year's. */
+      let next = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+      const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      if (next < midnight) next = new Date(today.getFullYear() + 1, dob.getMonth(), dob.getDate());
+      const days = Math.round((next - midnight) / 86400000);
+
+      return { student: s, dob, next, days, turning: next.getFullYear() - dob.getFullYear(), isToday: key === todayKey };
+    })
+    .filter((b) => b.days <= 14)
+    .sort((a, b) => a.days - b.days);
+
+  if (soon.length === 0) return null;
+
+  const rows = soon.map((b) => {
+    const s = b.student;
+    const first = s.full_name.trim().split(/\s+/)[0];
+    const nice = first.charAt(0) + first.slice(1).toLowerCase();
+
+    const message =
+      `Happy Birthday, ${nice}! 🎉\n\n` +
+      `Wishing you a wonderful year ahead and lots of good training. ` +
+      `We are proud to have you at Nippon Karate Club.\n\n` +
+      `— Sensei Pooja and everyone at Nippon Fit`;
+
+    const digits = phoneDigits(s.parent_phone || "");
+    const link = digits.length === 10
+      ? `https://wa.me/91${digits}?text=${encodeURIComponent(message)}`
+      : null;
+
+    return el(
+      "div",
+      { class: `birthday${b.isToday ? " is-today" : ""}` },
+      el(
+        "div",
+        { style: "flex:1;min-width:0" },
+        el("strong", {}, s.full_name),
+        el(
+          "div",
+          { class: "muted", style: "font-size:13px" },
+          b.isToday
+            ? `Turning ${b.turning} today`
+            : b.days === 1
+              ? `Turning ${b.turning} tomorrow`
+              : `Turning ${b.turning} on ${shortDate(localDate(b.next))} · in ${b.days} days`
+        )
+      ),
+      link
+        ? el("a", { class: "btn small", href: link, target: "_blank", rel: "noopener" }, "Wish on WhatsApp")
+        : el("span", { class: "muted", style: "font-size:13px" }, "No mobile on file")
+    );
+  });
+
+  const todayCount = soon.filter((b) => b.isToday).length;
+
+  return card(
+    todayCount ? `🎂 ${todayCount} birthday${todayCount === 1 ? "" : "s"} today` : "Birthdays coming up",
+    "Opens WhatsApp with the message written for you. Change it if you like before you send it.",
+    ...rows
+  );
+}

@@ -458,3 +458,11 @@ html, body {
 /* A missed box is not a breakage — say it plainly, without the alarm. */
 .error-box.gentle strong { display: none; }
 .error-box.gentle { border-left-color: var(--warn, #c99700); }
+
+/* Birthdays waiting to be wished */
+.birthday {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--line, #e6e2dc);
+}
+.birthday:last-child { border-bottom: 0; }
+.birthday.is-today strong { color: var(--accent, #8b1a1a); }
