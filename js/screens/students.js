@@ -8,7 +8,7 @@
 
 import * as db from "../db.js";
 import { reference, feeFor, beltFor, siblingsOf } from "../reference.js";
-import { el, card, table, input, button, fill, money, shortDate, section, toast, errorBox, empty, phoneDigits, localDate } from "../ui.js";
+import { el, card, table, input, button, fill, money, shortDate, section, toast, errorBox, empty, phoneDigits, indianMobile, localDate } from "../ui.js";
 
 /* The password every new parent starts on. The People tab offers the
    same one, so a parent given a login either way is told the same
@@ -20,15 +20,19 @@ export async function studentsScreen({ refresh }) {
 }
 
 async function load() {
-  const [students, ref, addons] = await Promise.all([
+  const [students, ref, addons, logins] = await Promise.all([
     db.select("students", { order: "full_name" }),
     reference(),
     db.select("student_addons"),
+    /* Who can actually sign in. Cross-referenced against the roll below,
+       so a parent who cannot get in is found here rather than by
+       telephoning the dojo. */
+    db.rpc("logins_status").catch(() => null),
   ]);
-  return { students, ref, addons };
+  return { students, ref, addons, logins };
 }
 
-function render({ students, ref, addons }, refresh) {
+function render({ students, ref, addons, logins }, refresh) {
   const search = input({ placeholder: "Search by name, ID card or mobile", autocapitalize: "off" });
   const results = el("div", {});
   const detail = el("div", {});
@@ -92,6 +96,7 @@ function render({ students, ref, addons }, refresh) {
     "div",
     {},
     detail,
+    lockedOutParents(active, logins, refresh),
     birthdays(active),
     addStudent(ref, refresh),
     card(
@@ -221,6 +226,8 @@ function studentPanel(student, ref, addons, allStudents, refresh) {
     ),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Fees"),
     feeButtons,
+    el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Parent's mobile and login"),
+    parentPhoneEditor(student),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Joining date"),
     joiningDateEditor(student, change),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Elite squad"),
@@ -535,15 +542,21 @@ function addStudent(ref, refresh) {
 
     if (!name.value.trim()) return problem.append(errorBox("Enter the child's name."));
     if (!card_no.value.trim()) return problem.append(errorBox("Enter an ID card number."));
-    if (phoneDigits(phone.value).length !== 10) {
-      return problem.append(errorBox("Enter the parent's 10-digit mobile number."));
+    const first = indianMobile(phone.value);
+    if (!first.ok) return problem.append(errorBox("Parent's mobile: " + first.why));
+
+    /* A second number is optional, but a WRONG second number is not
+       something to shrug at — it makes a login for a stranger. */
+    const second = phone2.value.trim() ? indianMobile(phone2.value) : null;
+    if (second && !second.ok) {
+      return problem.append(errorBox("Second parent's mobile: " + second.why));
     }
 
     save.disabled = true;
     save.textContent = "Adding…";
     try {
-      const mobile = "+91" + phoneDigits(phone.value);
-      const mobile2 = phoneDigits(phone2.value).length === 10 ? "+91" + phoneDigits(phone2.value) : null;
+      const mobile = "+91" + first.digits;
+      const mobile2 = second ? "+91" + second.digits : null;
 
       await db.insert("students", {
         id_card: card_no.value.trim(),
@@ -758,5 +771,166 @@ function birthdays(students) {
     todayCount ? `🎂 ${todayCount} birthday${todayCount === 1 ? "" : "s"} today` : "Birthdays coming up",
     "Opens WhatsApp with the message written for you. Change it if you like before you send it.",
     ...rows
+  );
+}
+
+
+/* Correcting a parent's mobile number, and giving them a login for it.
+
+   A mistyped number is not a small thing here: the login is built from
+   the number, so one wrong digit makes an account for a number nobody
+   owns, and the real parent is refused with no clue why. This puts both
+   halves in one place — fix the number, then hand them a login for the
+   corrected one — so it can be sorted while the parent is still on the
+   phone.
+
+   It deliberately does NOT use change(), which reloads the screen: that
+   would wipe the answer off the page before it could be read, and it
+   swallows errors this needs to show. */
+function parentPhoneEditor(student) {
+  const first = input({ inputmode: "tel", autocapitalize: "off",
+                        value: phoneDigits(student.parent_phone || "") });
+  const second = input({ inputmode: "tel", autocapitalize: "off",
+                         placeholder: "Optional",
+                         value: phoneDigits(student.parent2_phone || "") });
+  const problem = el("div", {});
+  const outcome = el("div", { style: "margin-top:10px" });
+
+  async function giveLogin(digits, label) {
+    await db.upsert("allowed_users",
+      [{ phone: "+91" + digits, role: "parent", full_name: student.guardian_name || null }], "phone");
+    const said = await db.rpc("admin_create_login", { p_contact: digits, p_password: DEFAULT_PASSWORD });
+    const already = String(said || "").toLowerCase().includes("already");
+    return el("li", {}, el("strong", {}, label + " " + digits), already
+      ? " — already had a login. They use their existing password."
+      : ` — can sign in now with the password ${DEFAULT_PASSWORD}`);
+  }
+
+  const save = button("Save and give them a login", async () => {
+    problem.replaceChildren();
+    outcome.replaceChildren();
+
+    const a = indianMobile(first.value);
+    if (!a.ok) return problem.append(errorBox("Parent's mobile: " + a.why));
+    const b = second.value.trim() ? indianMobile(second.value) : null;
+    if (b && !b.ok) return problem.append(errorBox("Second parent's mobile: " + b.why));
+
+    save.disabled = true;
+    save.textContent = "Saving…";
+    try {
+      /* The number goes in first. The link between child and parent is
+         made on the number, so it has to be right before the login. */
+      await db.update("students", { id: student.id }, {
+        parent_phone: "+91" + a.digits,
+        parent2_phone: b ? "+91" + b.digits : null,
+      });
+
+      const lines = [await giveLogin(a.digits, "Parent")];
+      if (b) lines.push(await giveLogin(b.digits, "Second parent"));
+
+      fill(outcome, el("div", { class: "done-box" },
+        el("strong", {}, "Saved"),
+        el("ul", { style: "margin:8px 0 0;padding-left:20px" }, ...lines)));
+      toast("Saved.");
+    } catch (err) {
+      problem.append(errorBox(err));
+    }
+    save.disabled = false;
+    save.textContent = "Save and give them a login";
+  }, "small");
+
+  return el("div", { style: "margin-top:12px" },
+    el("div", { style: "display:flex;gap:10px;flex-wrap:wrap" },
+      el("label", { class: "field", style: "flex:1;min-width:150px" },
+         el("span", { class: "field-label" }, "Parent's mobile"), first),
+      el("label", { class: "field", style: "flex:1;min-width:150px" },
+         el("span", { class: "field-label" }, "Second parent"), second)),
+    el("p", { class: "muted", style: "margin:-6px 0 10px" },
+       "Ten digits. If a parent cannot sign in, check this number first — " +
+       "their login is made from it, so one wrong digit locks them out."),
+    problem,
+    save,
+    outcome);
+}
+
+
+/* Parents who cannot sign in.
+
+   Every child on the roll has a parent's number. Every parent needs a
+   login made from that number. This compares the two lists and says
+   plainly who is missing one, because the alternative is finding out
+   when a parent rings up to say the app rejected them.
+
+   It disappears entirely when there is nobody to worry about, so it is
+   never in the way on an ordinary day. */
+function lockedOutParents(students, logins, refresh) {
+  if (!Array.isArray(logins)) return null;
+
+  const canSignIn = new Set(
+    logins.filter((r) => r.has_login).map((r) => phoneDigits(r.contact)).filter((d) => d.length === 10)
+  );
+
+  /* One entry per number, however many children share it. */
+  const stuck = new Map();
+  for (const child of students) {
+    for (const [num, which] of [[child.parent_phone, "Parent"], [child.parent2_phone, "Second parent"]]) {
+      const d = phoneDigits(num || "");
+      if (d.length !== 10 || canSignIn.has(d)) continue;
+      if (!stuck.has(d)) stuck.set(d, { digits: d, which, who: child.guardian_name, children: [] });
+      stuck.get(d).children.push(child.full_name);
+    }
+  }
+  if (stuck.size === 0) return null;
+
+  const rows = [...stuck.values()];
+  const problem = el("div", {});
+  const outcome = el("div", {});
+
+  const fixAll = button(
+    `Give ${rows.length === 1 ? "them a login" : "all ${rows.length} of them a login"}`.replace("${rows.length}", rows.length),
+    async () => {
+      problem.replaceChildren();
+      fixAll.disabled = true;
+      fixAll.textContent = "Creating…";
+      const done = [];
+      for (const r of rows) {
+        try {
+          await db.upsert("allowed_users",
+            [{ phone: "+91" + r.digits, role: "parent", full_name: r.who || null }], "phone");
+          const said = await db.rpc("admin_create_login", { p_contact: r.digits, p_password: DEFAULT_PASSWORD });
+          done.push(el("li", {}, el("strong", {}, r.digits), " — ",
+            String(said || "").toLowerCase().includes("already")
+              ? "already had one"
+              : `can sign in now with ${DEFAULT_PASSWORD}`));
+        } catch (err) {
+          done.push(el("li", {}, el("strong", {}, r.digits), " — failed: ", err.message || String(err)));
+        }
+      }
+      fill(outcome, el("div", { class: "done-box" },
+        el("strong", {}, "Done"),
+        el("ul", { style: "margin:8px 0 0;padding-left:20px" }, ...done),
+        el("p", { class: "muted", style: "margin:10px 0 0" },
+           "Tell them to sign in with their mobile number and change the password.")));
+      fixAll.disabled = false;
+      fixAll.textContent = "Give them a login";
+      refresh();
+    },
+    "wide"
+  );
+
+  return card(
+    `${rows.length} parent${rows.length === 1 ? "" : "s"} cannot sign in yet`,
+    "Their child is on the roll but no login has been made for their number. One tap fixes it.",
+    table(
+      [
+        { key: "digits", label: "Mobile" },
+        { key: "who", label: "Parent", format: (v) => v || "—" },
+        { key: "children", label: "Child", format: (v) => v.join(", ") },
+      ],
+      rows
+    ),
+    problem,
+    fixAll,
+    outcome
   );
 }

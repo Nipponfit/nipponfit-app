@@ -88,7 +88,44 @@ export function monthKey(label) {
   return i < 0 ? null : `${m[2]}-${String(i + 1).padStart(2, "0")}`;
 }
 
+/* The last ten digits of whatever is stored. Fine for DISPLAYING a
+   number already in the database, and wrong for checking one somebody
+   has just typed: it quietly throws away the extra digits of a typo
+   rather than objecting, so 99021622100 becomes 9021622100 and a login
+   gets made for a number nobody owns. Use indianMobile() for input. */
 export const phoneDigits = (p) => String(p || "").replace(/\D/g, "").slice(-10);
+
+/* Check a mobile number somebody has typed.
+
+   Accepts the forms people actually write — 9902162210, +91 9902162210,
+   091 9902162210, with spaces or dashes anywhere — and refuses anything
+   that is not one of them, saying what was wrong rather than silently
+   keeping the last ten digits.
+
+   Returns { ok, digits, why }. */
+export function indianMobile(raw) {
+  const typed = String(raw || "").trim();
+  if (!typed) return { ok: false, digits: "", why: "No number entered." };
+
+  let d = typed.replace(/\D/g, "");
+
+  if (d.length === 12 && d.startsWith("91")) d = d.slice(2);        // +91…
+  else if (d.length === 11 && d.startsWith("0")) d = d.slice(1);    // 0…
+
+  if (d.length !== 10) {
+    return {
+      ok: false,
+      digits: d,
+      why:
+        `That is ${d.length} digit${d.length === 1 ? "" : "s"}, and an Indian mobile is 10. ` +
+        `You typed ${typed}. Check it against the number they gave you.`,
+    };
+  }
+  if (!/^[6-9]/.test(d)) {
+    return { ok: false, digits: d, why: `Indian mobile numbers start with 6, 7, 8 or 9. You typed ${typed}.` };
+  }
+  return { ok: true, digits: d, why: null };
+}
 
 /* ------------------------------------------------------------------ */
 /* Building blocks used across screens                                 */

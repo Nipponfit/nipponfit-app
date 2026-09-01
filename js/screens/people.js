@@ -6,7 +6,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { el, card, table, input, button, section, toast, errorBox, empty, phoneDigits } from "../ui.js";
+import { el, card, table, input, button, section, toast, errorBox, empty, phoneDigits, indianMobile } from "../ui.js";
 
 export async function peopleScreen({ refresh }) {
   return el("div", {}, section(() => db.rpc("logins_status"), (rows) => render(rows, refresh), { label: "Checking logins…" }));
@@ -111,10 +111,11 @@ function addPerson(refresh) {
     "Add them and create their login",
     async () => {
       problem.replaceChildren();
-      const mobile = phoneDigits(phone.value);
+      const checked = indianMobile(phone.value);
 
       if (!name.value.trim()) return problem.append(errorBox(new Error("Enter their name.")));
-      if (mobile.length !== 10) return problem.append(errorBox(new Error("Enter their 10-digit mobile number.")));
+      if (!checked.ok) return problem.append(errorBox(new Error(checked.why)));
+      const mobile = checked.digits;
       if (password.value.length < 6) return problem.append(errorBox(new Error("The password needs at least 6 characters.")));
 
       add.disabled = true;
