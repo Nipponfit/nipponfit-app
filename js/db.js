@@ -97,13 +97,27 @@ export async function signIn(contact, password) {
   const email = await loginAddressFor(contact);
   if (!email) throw new Error("Enter your 10-digit mobile number, or your email address.");
 
-  const res = await fetch(`${URL_BASE}/auth/v1/token?grant_type=password`, {
-    method: "POST",
-    headers: { apikey: ANON, "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  /* A phone with no signal, a blocked network or a VPN makes fetch throw
+     before anything reaches us, and the browser's own words for that are
+     "Failed to fetch" — which tells a parent nothing and reads as though
+     the app is broken. Say what actually happened and what to do. */
+  let res;
+  try {
+    res = await fetch(`${URL_BASE}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { apikey: ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch {
+    throw new Error(
+      navigator.onLine === false
+        ? "Your phone is not connected to the internet. Turn on mobile data or Wi-Fi and try again."
+        : "Could not reach the dojo's system just now. Check your internet, then try again. " +
+          `If it keeps happening, try mobile data instead of Wi-Fi, or call ${CFG.HELP_PHONE || "9945616005"}.`
+    );
+  }
 
-  const body = await res.json();
+  const body = await res.json().catch(() => ({}));
 
   if (!res.ok) {
     const code = body.error_code || "";

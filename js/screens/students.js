@@ -10,6 +10,11 @@ import * as db from "../db.js";
 import { reference, feeFor, beltFor, siblingsOf } from "../reference.js";
 import { el, card, table, input, button, fill, money, shortDate, section, toast, errorBox, empty, phoneDigits, localDate } from "../ui.js";
 
+/* The password every new parent starts on. The People tab offers the
+   same one, so a parent given a login either way is told the same
+   thing. */
+const DEFAULT_PASSWORD = "nkc2026";
+
 export async function studentsScreen({ refresh }) {
   return el("div", {}, section(load, (data) => render(data, refresh), { label: "Fetching students…" }));
 }
@@ -493,6 +498,7 @@ function eliteToggle(student, ref, addons, refresh) {
 function addStudent(ref, refresh) {
   const open = el("div", {});
   const problem = el("div", {});
+  const done = el("div", { style: "margin-top:14px" });
 
   const name = input({ placeholder: "Child's full name" });
   const card_no = input({ placeholder: "Fetching the next one…" });
@@ -554,12 +560,43 @@ function addStudent(ref, refresh) {
         joined_on: joined.value || null,
       });
 
-      /* Put the parents on the club list so logins can be made. */
-      const parents = [{ phone: mobile, role: "parent", full_name: guardian.value.trim() || null }];
-      if (mobile2) parents.push({ phone: mobile2, role: "parent", full_name: guardian.value.trim() || null });
-      await db.upsert("allowed_users", parents, "phone").catch(() => {});
+      /* Give the parents their login here and now.
 
-      toast(`${name.value.trim()} added. Give the parent a login on the People tab.`);
+         This used to stop at putting them on the club list, and left
+         creating the login as a second job on the People tab. Everyone
+         forgets a second job. The parent was then told the app was
+         ready, tried their number, and was refused — which looks to
+         them like the app is broken and to you like nothing is wrong.
+
+         So: club list first, because admin_create_login refuses anyone
+         who is not on it, then the login itself. Whatever happens is
+         reported on screen rather than in a toast that vanishes. */
+      const named = guardian.value.trim() || null;
+      const parents = [{ phone: mobile, role: "parent", full_name: named }];
+      if (mobile2) parents.push({ phone: mobile2, role: "parent", full_name: named });
+
+      await db.upsert("allowed_users", parents, "phone");
+
+      const logins = [];
+      for (const who of parents) {
+        const digits = phoneDigits(who.phone);
+        try {
+          const said = await db.rpc("admin_create_login", {
+            p_contact: digits,
+            p_password: DEFAULT_PASSWORD,
+          });
+          logins.push({
+            digits,
+            ok: true,
+            already: String(said || "").toLowerCase().includes("already"),
+          });
+        } catch (err) {
+          logins.push({ digits, ok: false, why: err.message || String(err) });
+        }
+      }
+
+      report(name.value.trim(), logins);
+      toast(`${name.value.trim()} added.`);
       name.value = ""; guardian.value = ""; phone.value = ""; phone2.value = "";
       email.value = ""; blood.value = ""; dob.value = "";
       refresh();
@@ -575,6 +612,42 @@ function addStudent(ref, refresh) {
     save.disabled = false;
     save.textContent = "Add this student";
   }, "wide");
+
+  /* Says, in words you can read out over the phone, whether each parent
+     can sign in — and with what. */
+  function report(childName, logins) {
+    const lines = logins.map((l) =>
+      l.ok
+        ? el("li", {},
+             el("strong", {}, l.digits),
+             l.already
+               ? " — already had a login, nothing changed. They use their existing password."
+               : ` — can sign in now with the password ${DEFAULT_PASSWORD}`)
+        : el("li", {},
+             el("strong", {}, l.digits),
+             " — could NOT be given a login. ",
+             el("span", { class: "muted" }, l.why))
+    );
+
+    const allWell = logins.every((l) => l.ok);
+    fill(
+      done,
+      el(
+        "div",
+        { class: allWell ? "done-box" : "error-box" },
+        el("strong", {}, allWell ? `${childName} is on the roll` : `${childName} was added, but a login failed`),
+        el("ul", { style: "margin:8px 0 0;padding-left:20px" }, ...lines),
+        allWell
+          ? el("p", { class: "muted", style: "margin:10px 0 0" },
+               (logins.some((l) => !l.already)
+                 ? "Ask them to change that password once they are in. "
+                 : "") +
+               "If a number here is wrong, fix it on the student — the login follows the number.")
+          : el("p", { class: "muted", style: "margin:10px 0 0" },
+               "The child is saved. Give the parent a login on the People tab, or call me.")
+      )
+    );
+  }
 
   const form = el("div", { style: "display:none" },
     el("label", { class: "field" }, el("span", { class: "field-label" }, "Child's name"), name),
@@ -599,7 +672,7 @@ function addStudent(ref, refresh) {
     toggle.textContent = showing ? "Add a new student" : "Close";
   }, "wide");
 
-  fill(open, toggle, form);
+  fill(open, toggle, form, done);
   return card("New student", "Everything needed to enrol a child. The parent can be given a login straight afterwards.", open);
 }
 
