@@ -10,7 +10,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { reference, feeFor, beltFor, siblingsOf, sessionsEntitled, sessionsPerWeek, attendancePercent } from "../reference.js";
+import { reference, feeFor, beltFor, siblingsOf, sessionsEntitled, sessionsPerWeek, attendancePercent, countableMarks } from "../reference.js";
 import { gradingFormUrl, gradingFeeUpiLink } from "../jotform.js";
 import { el, card, table, stat, money, shortDate, button, fill, section, empty, errorBox, localDate } from "../ui.js";
 
@@ -96,8 +96,14 @@ function childCard(student, { ref, attendance, history, medals, addons, students
      The headline is THIS MONTH. A single lifetime figure only ever
      drifts downwards and stops meaning anything — a child who has
      turned it around since June deserves to see June is behind them. */
-  const mine = attendance.filter((a) => a.student_id === student.id);
+  /* Elite classes are left out at both ends: not counted as attended,
+     and not counted as owed. Elite is extra training on top, so coming
+     to every ordinary class is 100% whether or not they also do it. */
+  const mine = countableMarks(
+    attendance.filter((a) => a.student_id === student.id), ref
+  );
   const perWeek = sessionsPerWeek(student, ref, myAddons);
+  const eliteExtra = sessionsPerWeek(student, ref, myAddons, { withAddons: true }) - perWeek;
 
   const months = monthsFor(student, mine);
   const thisMonth = months[months.length - 1] || null;
@@ -116,7 +122,7 @@ function childCard(student, { ref, attendance, history, medals, addons, students
   let showing = false;
   const toggleMonths = () => {
     showing = !showing;
-    fill(breakdown, showing ? monthsCard(student, months, lifetimePresent, lifetimeEntitled) : null);
+    fill(breakdown, showing ? monthsCard(student, months, lifetimePresent, lifetimeEntitled, eliteExtra) : null);
     if (showing) breakdown.scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
 
@@ -412,7 +418,10 @@ function feeUpiLink(amount, student) {
    always add up to the classes owed: a month with no register marked
    shows neither, which is honest rather than pretending they were
    absent. */
-function monthsCard(student, months, lifetimePresent, lifetimeEntitled) {
+/* eliteExtra must be handed in. It belongs to the child, not to this
+   function — reaching for a value from the caller's scope is what
+   blanked every parent's screen once before. */
+function monthsCard(student, months, lifetimePresent, lifetimeEntitled, eliteExtra = 0) {
   const shown = [...months].reverse();
   const lifetime = attendancePercent(lifetimePresent, lifetimeEntitled);
 
@@ -456,6 +465,9 @@ function monthsCard(student, months, lifetimePresent, lifetimeEntitled) {
         ? "No classes recorded yet."
         : `Since joining: ${lifetimePresent} of ${lifetimeEntitled} classes, ${lifetime}% overall. ` +
           "Grading opens at 75%." +
+          (eliteExtra > 0
+            ? " Elite squad training is on top of this and is not counted either way."
+            : "") +
           (months.some((m) => m.state === "counted" && m.present > m.entitled)
             ? " Some months show more classes attended than the plan covers — extra " +
               "training is welcome and simply counts as full attendance."

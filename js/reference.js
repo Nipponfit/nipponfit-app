@@ -142,14 +142,43 @@ export function beltFor(student, ref) {
 /* How many classes a week this child's plan buys, including add-ons.
    The number comes from the plan itself, so it changes when you change
    the plan and never needs maintaining separately. */
-export function sessionsPerWeek(student, ref, addonPlanIds = []) {
+/* How many classes a week the child's own plan buys.
+
+   Add-ons are deliberately NOT counted. Elite squad is extra training
+   on top, not part of what attendance is judged on: a child who comes
+   to every ordinary class should read 100% whether or not they also do
+   Elite, and a child who skips an Elite Sunday should not be marked
+   down for it. Pass { withAddons: true } where the question really is
+   "how much training is this child signed up for" rather than "what
+   are they measured against". */
+export function sessionsPerWeek(student, ref, addonPlanIds = [], { withAddons = false } = {}) {
   const plan = ref.planById[student.plan_id];
   let perWeek = Number(plan?.sessions_per_week) || 0;
 
-  for (const id of addonPlanIds) {
-    perWeek += Number(ref.planById[id]?.sessions_per_week) || 0;
+  if (withAddons) {
+    for (const id of addonPlanIds) {
+      perWeek += Number(ref.planById[id]?.sessions_per_week) || 0;
+    }
   }
   return perWeek;
+}
+
+/* Was this attendance mark for an add-on class?
+
+   An Elite class carries the Elite plan on it, so a mark against that
+   class is Elite training. Those are left out of the percentage at both
+   ends: not counted as attended, and not counted as owed. */
+export function isAddonMark(mark, ref) {
+  if (!mark || !mark.session_id) return false;
+  const session = (ref.sessions || []).find((s) => s.id === mark.session_id);
+  if (!session || !session.plan_id) return false;
+  return Boolean(ref.planById[session.plan_id]?.is_addon);
+}
+
+/* The marks that count towards a percentage: everything except add-on
+   classes. */
+export function countableMarks(marks, ref) {
+  return (marks || []).filter((m) => !isAddonMark(m, ref));
 }
 
 /* How many classes they were entitled to between two dates.

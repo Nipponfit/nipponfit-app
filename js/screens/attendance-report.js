@@ -9,7 +9,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { reference, sessionsEntitled, attendancePercent } from "../reference.js";
+import { reference, sessionsEntitled, attendancePercent, countableMarks } from "../reference.js";
 import { el, card, table, stat, section, empty, localDate } from "../ui.js";
 
 const GRADING_THRESHOLD = 75;
@@ -63,8 +63,11 @@ function render({ attendance, students, ref, addons }) {
     const month = monthPicker.value;
     const dojoId = dojoPicker.value;
 
-    const inMonth = attendance.filter(
-      (a) => monthKey(a.on_date) === month && (!dojoId || a.dojo_id === dojoId)
+    /* Elite classes are extra training on top of a child's plan, so
+       they are left out of the percentage at both ends. */
+    const inMonth = countableMarks(
+      attendance.filter((a) => monthKey(a.on_date) === month && (!dojoId || a.dojo_id === dojoId)),
+      ref
     );
 
     /* One row per student who had any class that month */
@@ -143,7 +146,7 @@ function render({ attendance, students, ref, addons }) {
   return el(
     "div",
     {},
-    overallCard(attendance, months),
+    overallCard(attendance, months, ref),
     monthByDojoCard(attendance, months, ref, students, addons),
     card(
       "Student by student",
@@ -156,9 +159,10 @@ function render({ attendance, students, ref, addons }) {
 }
 
 /* Headline numbers across everything recorded */
-function overallCard(attendance, months) {
-  const present = attendance.filter((a) => a.present).length;
-  const rate = Math.round((present / attendance.length) * 100);
+function overallCard(attendance, months, ref) {
+  const counted = countableMarks(attendance, ref);
+  const present = counted.filter((a) => a.present).length;
+  const rate = counted.length ? Math.round((present / counted.length) * 100) : 0;
   const classDays = new Set(attendance.map((a) => `${a.on_date}|${a.dojo_id}|${a.session_id || ""}`)).size;
 
   return card(
@@ -168,8 +172,8 @@ function overallCard(attendance, months) {
       "div",
       { class: "stats" },
       stat("Classes held", classDays),
-      stat("Attendance", rate + "%", `${present} present of ${attendance.length} marks`),
-      stat("Absences", attendance.length - present)
+      stat("Attendance", rate + "%", `${present} present of ${counted.length} marks`),
+      stat("Absences", counted.length - present)
     )
   );
 }
@@ -198,7 +202,9 @@ function monthByDojoCard(attendance, months, ref, students, addons) {
   const rows = [];
 
   for (const month of months) {
-    const inMonth = attendance.filter((a) => monthKey(a.on_date) === month);
+    const inMonth = countableMarks(
+      attendance.filter((a) => monthKey(a.on_date) === month), ref
+    );
 
     for (const dojo of ref.dojos) {
       const mine = inMonth.filter((a) => a.dojo_id === dojo.id);
