@@ -97,6 +97,13 @@ export async function signIn(contact, password) {
   const email = await loginAddressFor(contact);
   if (!email) throw new Error("Enter your 10-digit mobile number, or your email address.");
 
+  /* Pasted passwords arrive with a space on the end far more often than
+     anyone believes — copying "nkc2026" out of a WhatsApp message picks
+     one up, and on a laptop people paste where on a phone they type.
+     A password here is never meant to have one, so trim it rather than
+     refuse somebody who typed the right thing. */
+  password = String(password || "").trim();
+
   /* A phone with no signal, a blocked network or a VPN makes fetch throw
      before anything reaches us, and the browser's own words for that are
      "Failed to fetch" — which tells a parent nothing and reads as though
@@ -124,8 +131,18 @@ export async function signIn(contact, password) {
     const msg = String(body.msg || body.error_description || "").toLowerCase();
 
     if (code === "invalid_credentials" || msg.includes("invalid login")) {
+      /* On a laptop the browser often fills this box with a saved email
+         address rather than the mobile number, and most accounts here
+         have no email on them. Say so, instead of leaving them to
+         retype the same thing. */
+      const usedEmail = String(contact || "").includes("@");
       throw new Error(
-        `That mobile number and password do not match. Check both, or call the dojo on ${CFG.HELP_PHONE || "9945616005"} to have it reset.`
+        usedEmail
+          ? "That email and password do not match. Most accounts here are under a MOBILE NUMBER, " +
+            "not an email — try your 10-digit mobile number instead. If your browser filled the box " +
+            `for you, clear it first. Still stuck? Call the dojo on ${CFG.HELP_PHONE || "9945616005"}.`
+          : `That mobile number and password do not match. Check both — the password is case sensitive — ` +
+            `or call the dojo on ${CFG.HELP_PHONE || "9945616005"} to have it reset.`
       );
     }
     if (msg.includes("not confirmed")) throw new Error("That account is not confirmed yet. Call the dojo.");

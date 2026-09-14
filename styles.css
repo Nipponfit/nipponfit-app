@@ -495,3 +495,14 @@ html, body {
   font-size: 15px;
 }
 .done-box strong { display: block; margin-bottom: 4px; }
+
+/* A laptop has a Caps Lock key; a phone does not. */
+.caps-warning {
+  margin: -6px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warn-fg, #8a5a00);
+  background: var(--warn-bg, #fdf1d8);
+  border-radius: 6px;
+  padding: 6px 10px;
+}

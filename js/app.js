@@ -154,6 +154,18 @@ function login(prefill = "") {
   const problem = el("div", {});
   const submit = button("Sign in", trySignIn, "wide");
 
+  /* A laptop has a Caps Lock key and a phone does not, which is a large
+     part of why signing in works on one and not the other. NKC2026 is
+     not nkc2026. */
+  const capsWarning = el("p", { class: "caps-warning", style: "display:none" }, "Caps Lock is on");
+  const watchCaps = (e) => {
+    const on = typeof e.getModifierState === "function" && e.getModifierState("CapsLock");
+    capsWarning.style.display = on ? "block" : "none";
+  };
+  password.addEventListener("keyup", watchCaps);
+  password.addEventListener("keydown", watchCaps);
+  password.addEventListener("focus", watchCaps);
+
   async function trySignIn() {
     clear(problem);
     submit.disabled = true;
@@ -173,6 +185,7 @@ function login(prefill = "") {
     { onSubmit: (e) => { e.preventDefault(); trySignIn(); } },
     field("Mobile number or email", contact),
     field("Password", password),
+    capsWarning,
     problem,
     submit
   );

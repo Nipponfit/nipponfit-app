@@ -7,6 +7,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
+import { welcomeLink } from "../messages.js";
 import { reference, feeFor, beltFor, siblingsOf } from "../reference.js";
 import { el, card, table, input, button, fill, money, shortDate, section, toast, errorBox, empty, phoneDigits, indianMobile, localDate } from "../ui.js";
 
@@ -635,7 +636,12 @@ function addStudent(ref, refresh) {
              el("strong", {}, l.digits),
              l.already
                ? " — already had a login, nothing changed. They use their existing password."
-               : ` — can sign in now with the password ${DEFAULT_PASSWORD}`)
+               : ` — can sign in now with the password ${DEFAULT_PASSWORD}`,
+             welcomeLink(l.digits)
+               ? el("a", { class: "btn small", style: "margin-left:8px",
+                           href: welcomeLink(l.digits), target: "_blank", rel: "noopener" },
+                    "Send welcome message")
+               : null)
         : el("li", {},
              el("strong", {}, l.digits),
              " — could NOT be given a login. ",
@@ -803,7 +809,12 @@ function parentPhoneEditor(student) {
     const already = String(said || "").toLowerCase().includes("already");
     return el("li", {}, el("strong", {}, label + " " + digits), already
       ? " — already had a login. They use their existing password."
-      : ` — can sign in now with the password ${DEFAULT_PASSWORD}`);
+      : ` — can sign in now with the password ${DEFAULT_PASSWORD}`,
+      welcomeLink(digits)
+        ? el("a", { class: "btn small", style: "margin-left:8px",
+                    href: welcomeLink(digits), target: "_blank", rel: "noopener" },
+             "Send welcome message")
+        : null);
   }
 
   const save = button("Save and give them a login", async () => {
@@ -901,7 +912,12 @@ function lockedOutParents(students, logins, refresh) {
           done.push(el("li", {}, el("strong", {}, r.digits), " — ",
             String(said || "").toLowerCase().includes("already")
               ? "already had one"
-              : `can sign in now with ${DEFAULT_PASSWORD}`));
+              : `can sign in now with ${DEFAULT_PASSWORD}`,
+            welcomeLink(r.digits)
+              ? el("a", { class: "btn small", style: "margin-left:8px",
+                          href: welcomeLink(r.digits), target: "_blank", rel: "noopener" },
+                   "Send welcome")
+              : null));
         } catch (err) {
           done.push(el("li", {}, el("strong", {}, r.digits), " — failed: ", err.message || String(err)));
         }

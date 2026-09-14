@@ -145,8 +145,12 @@ function chaseCard(row, refresh) {
       paid.disabled = true;
       paid.textContent = "Saving…";
       try {
-        await db.update("students", { id: row.student_id }, { fee_state: "paid" });
-        toast(`${row.student} marked paid.`);
+        /* Through the database function, not a bare update: it also
+           moves the next payment date on by one billing cycle. Without
+           that the student falls due again tomorrow morning and you
+           would be marking them paid every single day. */
+        const said = await db.rpc("mark_fee_paid", { p_student: row.student_id });
+        toast(typeof said === "string" ? said : `${row.student} marked paid.`);
         refresh();
       } catch (err) {
         problem.append(errorBox(err));
