@@ -57,4 +57,8 @@ window.NIPPONFIT_CONFIG = {
   // Your other ID, 9945616005@ibl, works too — swap it in if this one
   // ever stops accepting payments.
   UPI_ID: "nipponfit@idfcbank",
+
+  // The parent setup guide, which the welcome message links to.
+  // It is a page on this same site: app-v2/guide.html.
+  GUIDE_URL: "https://app.nipponfit.com/guide.html",
 };
