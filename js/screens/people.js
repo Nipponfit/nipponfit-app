@@ -6,7 +6,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { welcomeLinkFor } from "../messages.js";
+import { welcomeControl } from "../messages.js";
 import { el, card, table, input, button, section, toast, errorBox, empty, phoneDigits, indianMobile } from "../ui.js";
 
 export async function peopleScreen({ refresh }) {
@@ -32,13 +32,14 @@ function render(rows, refresh) {
         {
           key: "contact",
           label: "",
-          format: (contact, row) => {
-            const link = welcomeLinkFor(phoneDigits(contact), { name: row.person, role: row.role });
-            return link
-              ? el("a", { class: "btn small quiet", href: link, target: "_blank", rel: "noopener" },
-                   "Send welcome")
-              : el("span", { class: "muted" }, "no mobile");
-          },
+          format: (contact, row) =>
+            welcomeControl({
+              digits: phoneDigits(contact),
+              name: row.person,
+              role: row.role,
+              welcomedAt: row.welcomed_at,
+              refresh,
+            }),
         },
             ],
             without
@@ -52,8 +53,8 @@ function render(rows, refresh) {
 
     card(
       `Can sign in (${withLogin.length})`,
-      "Send welcome opens WhatsApp with the setup guide already written. " +
-        "Parents get the parent wording, staff get theirs.",
+      "Send welcome only appears for somebody who has never been sent one. " +
+        "Anyone already welcomed shows the date, with Send again beside it.",
       table(
         [
           { key: "role", label: "Role" },
@@ -62,13 +63,14 @@ function render(rows, refresh) {
         {
           key: "contact",
           label: "",
-          format: (contact, row) => {
-            const link = welcomeLinkFor(phoneDigits(contact), { name: row.person, role: row.role });
-            return link
-              ? el("a", { class: "btn small quiet", href: link, target: "_blank", rel: "noopener" },
-                   "Send welcome")
-              : el("span", { class: "muted" }, "no mobile");
-          },
+          format: (contact, row) =>
+            welcomeControl({
+              digits: phoneDigits(contact),
+              name: row.person,
+              role: row.role,
+              welcomedAt: row.welcomed_at,
+              refresh,
+            }),
         },
         ],
         withLogin

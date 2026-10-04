@@ -506,3 +506,7 @@ html, body {
   border-radius: 6px;
   padding: 6px 10px;
 }
+
+/* A secondary action that should not compete with the real one. */
+.quiet-link { color: var(--ink-soft, #5B4E44); text-decoration: underline; }
+.quiet-link:hover { color: var(--accent, #8b1a1a); }

@@ -7,7 +7,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
-import { welcomeLink } from "../messages.js";
+import { welcomeControl, welcomedIndex } from "../messages.js";
 import { reference, feeFor, beltFor, siblingsOf } from "../reference.js";
 import { el, card, table, input, button, fill, money, shortDate, section, toast, errorBox, empty, phoneDigits, indianMobile, localDate } from "../ui.js";
 
@@ -66,7 +66,7 @@ function render({ students, ref, addons, logins }, refresh) {
             key: "full_name",
             label: "Student",
             format: (name, row) =>
-              el("a", { href: "#", onClick: (e) => { e.preventDefault(); detail.replaceChildren(studentPanel(row, ref, addons, active, refresh)); detail.scrollIntoView({ behavior: "smooth", block: "start" }); } }, name),
+              el("a", { href: "#", onClick: (e) => { e.preventDefault(); detail.replaceChildren(studentPanel(row, ref, addons, active, refresh, logins)); detail.scrollIntoView({ behavior: "smooth", block: "start" }); } }, name),
           },
           { key: "id_card", label: "ID card" },
           { key: "dojo_id", label: "Dojo", format: (id) => ref.dojoById[id]?.name },
@@ -117,7 +117,7 @@ function render({ students, ref, addons, logins }, refresh) {
   );
 }
 
-function studentPanel(student, ref, addons, allStudents, refresh) {
+function studentPanel(student, ref, addons, allStudents, refresh, logins) {
   const { belt, next } = beltFor(student, ref);
   const dojo = ref.dojoById[student.dojo_id];
   const siblings = siblingsOf(student, allStudents);
@@ -228,7 +228,7 @@ function studentPanel(student, ref, addons, allStudents, refresh) {
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Fees"),
     feeButtons,
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Welcome message"),
-    welcomeButtons(student),
+    welcomeButtons(student, logins, refresh),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Parent's mobile and login"),
     parentPhoneEditor(student),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Joining date"),
@@ -639,11 +639,9 @@ function addStudent(ref, refresh) {
              l.already
                ? " — already had a login, nothing changed. They use their existing password."
                : ` — can sign in now with the password ${DEFAULT_PASSWORD}`,
-             welcomeLink(l.digits)
-               ? el("a", { class: "btn small", style: "margin-left:8px",
-                           href: welcomeLink(l.digits), target: "_blank", rel: "noopener" },
-                    "Send welcome message")
-               : null)
+             el("span", { style: "margin-left:8px" },
+                welcomeControl({ digits: l.digits, role: "parent",
+                                 welcomedAt: null, label: "Send welcome message", refresh })))
         : el("li", {},
              el("strong", {}, l.digits),
              " — could NOT be given a login. ",
@@ -812,11 +810,9 @@ function parentPhoneEditor(student) {
     return el("li", {}, el("strong", {}, label + " " + digits), already
       ? " — already had a login. They use their existing password."
       : ` — can sign in now with the password ${DEFAULT_PASSWORD}`,
-      welcomeLink(digits)
-        ? el("a", { class: "btn small", style: "margin-left:8px",
-                    href: welcomeLink(digits), target: "_blank", rel: "noopener" },
-             "Send welcome message")
-        : null);
+      el("span", { style: "margin-left:8px" },
+         welcomeControl({ digits, name: student.guardian_name, role: "parent",
+                          welcomedAt: null, label: "Send welcome message" })));
   }
 
   const save = button("Save and give them a login", async () => {
@@ -915,11 +911,9 @@ function lockedOutParents(students, logins, refresh) {
             String(said || "").toLowerCase().includes("already")
               ? "already had one"
               : `can sign in now with ${DEFAULT_PASSWORD}`,
-            welcomeLink(r.digits)
-              ? el("a", { class: "btn small", style: "margin-left:8px",
-                          href: welcomeLink(r.digits), target: "_blank", rel: "noopener" },
-                   "Send welcome")
-              : null));
+            el("span", { style: "margin-left:8px" },
+               welcomeControl({ digits: r.digits, name: r.who, role: "parent",
+                                welcomedAt: null, label: "Send welcome", refresh }))));
         } catch (err) {
           done.push(el("li", {}, el("strong", {}, r.digits), " — failed: ", err.message || String(err)));
         }
@@ -960,10 +954,10 @@ function lockedOutParents(students, logins, refresh) {
    moment passes — and a parent who lost the message, changed phone or
    was added before the app could send one still needs it. So it lives
    here too, on the child's own panel, where it can always be found. */
-function welcomeButtons(student) {
+function welcomeButtons(student, logins, refresh) {
   const numbers = [
-    ["Parent", phoneDigits(student.parent_phone || "")],
-    ["Second parent", phoneDigits(student.parent2_phone || "")],
+    ["parent", phoneDigits(student.parent_phone || "")],
+    ["second parent", phoneDigits(student.parent2_phone || "")],
   ].filter(([, d]) => d.length === 10);
 
   if (numbers.length === 0) {
@@ -971,16 +965,29 @@ function welcomeButtons(student) {
       "No mobile number on file, so there is nobody to send it to. Add one below.");
   }
 
+  const welcomed = welcomedIndex(logins);
+  const anyNew = numbers.some(([, d]) => !welcomed.get(d));
+
   return el(
     "div",
     { style: "margin-top:10px" },
-    el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" },
+    el("div", { style: "display:flex;gap:14px;flex-wrap:wrap;align-items:center" },
       ...numbers.map(([label, digits]) =>
-        el("a", { class: "btn small", href: welcomeLink(digits),
-                  target: "_blank", rel: "noopener" },
-           `Send to ${label.toLowerCase()} ${digits}`))),
+        el("span", { style: "display:flex;gap:8px;align-items:center" },
+           el("span", { class: "muted", style: "font-size:13px" }, `${label} ${digits}`),
+           welcomeControl({
+             digits,
+             name: student.guardian_name,
+             role: "parent",
+             welcomedAt: welcomed.get(digits),
+             label: "Send welcome",
+             refresh,
+           })))),
     el("p", { class: "muted", style: "margin:8px 0 0;font-size:13px" },
-       "Opens WhatsApp with the welcome and the setup guide already written. " +
-       "Read it, then press send — it goes from your number.")
+       anyNew
+         ? "Opens WhatsApp with the welcome and the setup guide already written. " +
+           "Read it, then press send — it goes from your number."
+         : "Both have been welcomed already. Send again only if they lost the " +
+           "message or changed phone.")
   );
 }

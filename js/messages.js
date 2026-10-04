@@ -12,6 +12,9 @@
    It goes from your number, which for a welcome is the point.
    ===================================================================== */
 
+import * as db from "./db.js";
+import { el, shortDate } from "./ui.js";
+
 const CFG = window.NIPPONFIT_CONFIG || {};
 
 const HELP = CFG.HELP_PHONE || "9945616005";
@@ -125,4 +128,53 @@ export function welcomeLinkFor(digits, { name, role } = {}) {
   if (r === "instructor") return staffWelcomeLink(digits, name, "instructor");
   if (r === "admin" || r === "founder") return staffWelcomeLink(digits, name, "admin");
   return welcomeLink(digits);
+}
+
+
+/* The control that sends a welcome, wherever it appears.
+
+   One button, one rule: it is offered prominently ONLY to somebody who
+   has never been sent one. Anybody already welcomed shows the date and
+   a quiet "Send again", because a parent who lost the message or
+   changed phone still needs a way — but it should not sit there
+   shouting beside fifty families who were done months ago.
+
+   Pressing it records the date. The link is not intercepted, so
+   WhatsApp still opens; the note is written in the background. */
+export function welcomeControl({ digits, name, role, welcomedAt, label, refresh }) {
+  const d = String(digits || "").replace(/\D/g, "");
+  const link = welcomeLinkFor(d, { name, role });
+  if (!link) return el("span", { class: "muted", style: "font-size:13px" }, "no mobile");
+
+  const remember = () => {
+    db.rpc("mark_welcomed", { p_phone: d })
+      .then(() => { if (refresh) refresh(); })
+      .catch(() => { /* the message still went; the note can wait */ });
+  };
+
+  if (!welcomedAt) {
+    return el("a", {
+      class: "btn small", href: link, target: "_blank", rel: "noopener", onClick: remember,
+    }, label || "Send welcome");
+  }
+
+  return el(
+    "span",
+    { style: "white-space:nowrap" },
+    el("span", { class: "muted", style: "font-size:13px" }, "welcomed " + shortDate(welcomedAt)),
+    el("a", {
+      class: "quiet-link", href: link, target: "_blank", rel: "noopener", onClick: remember,
+      style: "margin-left:8px;font-size:13px",
+    }, "Send again")
+  );
+}
+
+/* digits -> when they were welcomed, built from logins_status. */
+export function welcomedIndex(logins) {
+  const map = new Map();
+  for (const r of logins || []) {
+    const d = String(r.contact || "").replace(/\D/g, "").slice(-10);
+    if (d.length === 10) map.set(d, r.welcomed_at || null);
+  }
+  return map;
 }
