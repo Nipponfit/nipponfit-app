@@ -227,6 +227,8 @@ function studentPanel(student, ref, addons, allStudents, refresh) {
     ),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Fees"),
     feeButtons,
+    el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Welcome message"),
+    welcomeButtons(student),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Parent's mobile and login"),
     parentPhoneEditor(student),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Joining date"),
@@ -948,5 +950,37 @@ function lockedOutParents(students, logins, refresh) {
     problem,
     fixAll,
     outcome
+  );
+}
+
+
+/* Send this child's parents the welcome, any time.
+
+   The same button appears when a student is first added, but that
+   moment passes — and a parent who lost the message, changed phone or
+   was added before the app could send one still needs it. So it lives
+   here too, on the child's own panel, where it can always be found. */
+function welcomeButtons(student) {
+  const numbers = [
+    ["Parent", phoneDigits(student.parent_phone || "")],
+    ["Second parent", phoneDigits(student.parent2_phone || "")],
+  ].filter(([, d]) => d.length === 10);
+
+  if (numbers.length === 0) {
+    return el("p", { class: "muted", style: "margin:10px 0 0" },
+      "No mobile number on file, so there is nobody to send it to. Add one below.");
+  }
+
+  return el(
+    "div",
+    { style: "margin-top:10px" },
+    el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" },
+      ...numbers.map(([label, digits]) =>
+        el("a", { class: "btn small", href: welcomeLink(digits),
+                  target: "_blank", rel: "noopener" },
+           `Send to ${label.toLowerCase()} ${digits}`))),
+    el("p", { class: "muted", style: "margin:8px 0 0;font-size:13px" },
+       "Opens WhatsApp with the welcome and the setup guide already written. " +
+       "Read it, then press send — it goes from your number.")
   );
 }

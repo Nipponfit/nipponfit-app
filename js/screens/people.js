@@ -6,6 +6,7 @@
    ===================================================================== */
 
 import * as db from "../db.js";
+import { welcomeLinkFor } from "../messages.js";
 import { el, card, table, input, button, section, toast, errorBox, empty, phoneDigits, indianMobile } from "../ui.js";
 
 export async function peopleScreen({ refresh }) {
@@ -28,6 +29,17 @@ function render(rows, refresh) {
               { key: "role", label: "Role" },
               { key: "person", label: "Name" },
               { key: "contact", label: "Mobile", format: phoneDigits },
+        {
+          key: "contact",
+          label: "",
+          format: (contact, row) => {
+            const link = welcomeLinkFor(phoneDigits(contact), { name: row.person, role: row.role });
+            return link
+              ? el("a", { class: "btn small quiet", href: link, target: "_blank", rel: "noopener" },
+                   "Send welcome")
+              : el("span", { class: "muted" }, "no mobile");
+          },
+        },
             ],
             without
           ),
@@ -40,12 +52,24 @@ function render(rows, refresh) {
 
     card(
       `Can sign in (${withLogin.length})`,
-      null,
+      "Send welcome opens WhatsApp with the setup guide already written. " +
+        "Parents get the parent wording, staff get theirs.",
       table(
         [
           { key: "role", label: "Role" },
           { key: "person", label: "Name" },
           { key: "contact", label: "Signs in with", format: phoneDigits },
+        {
+          key: "contact",
+          label: "",
+          format: (contact, row) => {
+            const link = welcomeLinkFor(phoneDigits(contact), { name: row.person, role: row.role });
+            return link
+              ? el("a", { class: "btn small quiet", href: link, target: "_blank", rel: "noopener" },
+                   "Send welcome")
+              : el("span", { class: "muted" }, "no mobile");
+          },
+        },
         ],
         withLogin
       )
