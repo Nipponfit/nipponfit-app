@@ -39,7 +39,7 @@ function render(rows, refresh) {
               role: row.role,
               welcomedAt: row.welcomed_at,
               refresh,
-            }),
+            }) || el("span", {}),
         },
             ],
             without
@@ -53,8 +53,8 @@ function render(rows, refresh) {
 
     card(
       `Can sign in (${withLogin.length})`,
-      "Send welcome only appears for somebody who has never been sent one. " +
-        "Anyone already welcomed shows the date, with Send again beside it.",
+      "Send welcome appears only beside somebody who has never been sent one. " +
+        "Once it is sent, it goes.",
       table(
         [
           { key: "role", label: "Role" },
@@ -70,7 +70,7 @@ function render(rows, refresh) {
               role: row.role,
               welcomedAt: row.welcomed_at,
               refresh,
-            }),
+            }) || el("span", {}),
         },
         ],
         withLogin

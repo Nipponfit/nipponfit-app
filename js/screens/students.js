@@ -227,7 +227,6 @@ function studentPanel(student, ref, addons, allStudents, refresh, logins) {
     ),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Fees"),
     feeButtons,
-    el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Welcome message"),
     welcomeButtons(student, logins, refresh),
     el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Parent's mobile and login"),
     parentPhoneEditor(student),
@@ -955,39 +954,36 @@ function lockedOutParents(students, logins, refresh) {
    was added before the app could send one still needs it. So it lives
    here too, on the child's own panel, where it can always be found. */
 function welcomeButtons(student, logins, refresh) {
-  const numbers = [
+  const welcomed = welcomedIndex(logins);
+
+  const waiting = [
     ["parent", phoneDigits(student.parent_phone || "")],
     ["second parent", phoneDigits(student.parent2_phone || "")],
-  ].filter(([, d]) => d.length === 10);
+  ].filter(([, d]) => d.length === 10 && !welcomed.get(d));
 
-  if (numbers.length === 0) {
-    return el("p", { class: "muted", style: "margin:10px 0 0" },
-      "No mobile number on file, so there is nobody to send it to. Add one below.");
-  }
-
-  const welcomed = welcomedIndex(logins);
-  const anyNew = numbers.some(([, d]) => !welcomed.get(d));
+  /* Nothing to send means no card at all. An empty heading with
+     nothing under it is worse than silence. */
+  if (waiting.length === 0) return null;
 
   return el(
     "div",
-    { style: "margin-top:10px" },
-    el("div", { style: "display:flex;gap:14px;flex-wrap:wrap;align-items:center" },
-      ...numbers.map(([label, digits]) =>
+    {},
+    el("h3", { style: "font-size:14px;margin:18px 0 0" }, "Welcome message"),
+    el("div", { style: "margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:center" },
+      ...waiting.map(([label, digits]) =>
         el("span", { style: "display:flex;gap:8px;align-items:center" },
            el("span", { class: "muted", style: "font-size:13px" }, `${label} ${digits}`),
            welcomeControl({
              digits,
              name: student.guardian_name,
              role: "parent",
-             welcomedAt: welcomed.get(digits),
+             welcomedAt: null,
              label: "Send welcome",
              refresh,
            })))),
     el("p", { class: "muted", style: "margin:8px 0 0;font-size:13px" },
-       anyNew
-         ? "Opens WhatsApp with the welcome and the setup guide already written. " +
-           "Read it, then press send — it goes from your number."
-         : "Both have been welcomed already. Send again only if they lost the " +
-           "message or changed phone.")
+       "Opens WhatsApp with the welcome and the setup guide already written. " +
+       "Read it, then press send — it goes from your number, and this " +
+       "disappears once it has gone.")
   );
 }

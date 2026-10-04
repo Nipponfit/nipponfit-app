@@ -13,7 +13,7 @@
    ===================================================================== */
 
 import * as db from "./db.js";
-import { el, shortDate } from "./ui.js";
+import { el } from "./ui.js";
 
 const CFG = window.NIPPONFIT_CONFIG || {};
 
@@ -131,42 +131,37 @@ export function welcomeLinkFor(digits, { name, role } = {}) {
 }
 
 
-/* The control that sends a welcome, wherever it appears.
+/* The button that sends a welcome — offered once, then gone.
 
-   One button, one rule: it is offered prominently ONLY to somebody who
-   has never been sent one. Anybody already welcomed shows the date and
-   a quiet "Send again", because a parent who lost the message or
-   changed phone still needs a way — but it should not sit there
-   shouting beside fifty families who were done months ago.
+   It appears only for a number that has never been written to. The
+   moment it is pressed the date is recorded and the button does not
+   come back. No date on screen, no "send again": once a family is
+   welcomed there is nothing left to decide, and a row of dead controls
+   beside fifty names is just clutter.
 
-   Pressing it records the date. The link is not intercepted, so
-   WhatsApp still opens; the note is written in the background. */
+   If somebody ever loses the message, she sends it herself from
+   WhatsApp — which is what she would do anyway.
+
+   Returns null when there is nothing to offer, so a caller can leave
+   the whole card out rather than render an empty one. */
 export function welcomeControl({ digits, name, role, welcomedAt, label, refresh }) {
+  if (welcomedAt) return null;
+
   const d = String(digits || "").replace(/\D/g, "");
   const link = welcomeLinkFor(d, { name, role });
-  if (!link) return el("span", { class: "muted", style: "font-size:13px" }, "no mobile");
+  if (!link) return null;
 
+  /* The link is not intercepted, so WhatsApp still opens; the note that
+     it went is written in the background. */
   const remember = () => {
     db.rpc("mark_welcomed", { p_phone: d })
       .then(() => { if (refresh) refresh(); })
       .catch(() => { /* the message still went; the note can wait */ });
   };
 
-  if (!welcomedAt) {
-    return el("a", {
-      class: "btn small", href: link, target: "_blank", rel: "noopener", onClick: remember,
-    }, label || "Send welcome");
-  }
-
-  return el(
-    "span",
-    { style: "white-space:nowrap" },
-    el("span", { class: "muted", style: "font-size:13px" }, "welcomed " + shortDate(welcomedAt)),
-    el("a", {
-      class: "quiet-link", href: link, target: "_blank", rel: "noopener", onClick: remember,
-      style: "margin-left:8px;font-size:13px",
-    }, "Send again")
-  );
+  return el("a", {
+    class: "btn small", href: link, target: "_blank", rel: "noopener", onClick: remember,
+  }, label || "Send welcome");
 }
 
 /* digits -> when they were welcomed, built from logins_status. */
