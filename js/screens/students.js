@@ -173,13 +173,36 @@ function studentPanel(student, ref, addons, allStudents, refresh, logins) {
     }
   }
 
+  /* Marking paid has to go through the database function, not a plain
+     update of the status.
+
+     The function also moves the next payment date on by one billing
+     cycle. A plain update left that date in the past, so the job that
+     runs every morning saw a student marked paid whose date had already
+     come round, and quite correctly put them back to due. From her side
+     it looked as though the app had forgotten — a day or two later the
+     student was showing due again. It had not forgotten; it had been
+     told something contradictory and believed the date. */
+  async function markFeePaid() {
+    problem.replaceChildren();
+    try {
+      const said = await db.rpc("mark_fee_paid", { p_student: student.id });
+      toast(typeof said === "string" ? said : `${student.full_name} marked paid.`);
+      refresh();
+    } catch (err) {
+      problem.append(errorBox(err));
+    }
+  }
+
   const feeButtons = el(
     "div",
     { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" },
     ...["paid", "due", "overdue"].map((state) =>
       button(
         state === "paid" ? "Mark paid" : state === "due" ? "Mark due" : "Mark overdue",
-        () => change({ fee_state: state }, `${student.full_name} marked ${state}.`),
+        state === "paid"
+          ? markFeePaid
+          : () => change({ fee_state: state }, `${student.full_name} marked ${state}.`),
         student.fee_state === state ? "small" : "small quiet"
       )
     )

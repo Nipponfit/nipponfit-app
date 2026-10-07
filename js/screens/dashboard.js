@@ -57,21 +57,83 @@ function render({ students, ref, addons, attendance, history, fees, payouts, rev
   const attendanceRate = attendance.length ? Math.round((present / attendance.length) * 100) : null;
   const gradingIncome = history.reduce((sum, h) => sum + Number(h.fee_paid || 0), 0);
   const owedToInstructors = payouts.reduce((sum, p) => sum + Number(p.still_owed || 0), 0);
+  /* What is actually still to come in.
+
+     fees_due_now holds only students who have not paid this cycle — a
+     student marked paid drops out of it the moment the payment date
+     moves on. So this figure already has settled fees taken off it;
+     it is money outstanding, not money expected. */
   const owedByParents = fees.reduce((sum, f) => sum + Number(f.amount || 0), 0);
+
+  const owedByDojo = ref.dojos
+    .map((dojo) => {
+      const mine = fees.filter((f) => f.dojo === dojo.name);
+      const settled = training.filter((s) => s.dojo_id === dojo.id).length - mine.length;
+      return {
+        dojo: dojo.name,
+        waiting: mine.length,
+        settled: Math.max(0, settled),
+        amount: mine.reduce((sum, f) => sum + Number(f.amount || 0), 0),
+        late: mine.filter((f) => Number(f.days_late || 0) > 0).length,
+      };
+    })
+    .filter((d) => d.waiting > 0 || d.settled > 0);
+
+  const settledCount = training.length - fees.length;
+  const lateCount = fees.filter((f) => Number(f.days_late || 0) > 0).length;
+  const lateAmount = fees
+    .filter((f) => Number(f.days_late || 0) > 0)
+    .reduce((sum, f) => sum + Number(f.amount || 0), 0);
 
   return el(
     "div",
     {},
+    /* The one number she opens the app for. Everything a student has
+       already paid is off it, so it is what is genuinely still to
+       collect — not a projection. */
     card(
-      "Where things stand",
+      "Still to collect",
+      fees.length
+        ? `${fees.length} of ${training.length} students have not paid this cycle.`
+        : "Every student is paid up.",
+      el(
+        "div",
+        { class: "stats" },
+        stat("Still to collect", money(owedByParents),
+             fees.length ? `${fees.length} students` : "nothing outstanding"),
+        stat("Overdue", money(lateAmount),
+             lateCount ? `${lateCount} past the due date` : "none past due"),
+        stat("Paid this cycle", settledCount,
+             `of ${training.length} training`),
+        stat("Owed to instructors", money(owedToInstructors))
+      )
+    ),
+
+    owedByDojo.length > 0
+      ? card(
+          "Still to collect, by dojo",
+          "Students who have paid are already taken off these figures.",
+          table(
+            [
+              { key: "dojo", label: "Dojo" },
+              { key: "waiting", label: "Not paid", align: "num" },
+              { key: "settled", label: "Paid", align: "num" },
+              { key: "late", label: "Overdue", align: "num", format: (v) => (v > 0 ? v : "—") },
+              { key: "amount", label: "Still to collect", align: "num", format: money },
+            ],
+            owedByDojo
+          )
+        )
+      : null,
+
+    card(
+      "The club",
       "Live from your database.",
       el(
         "div",
         { class: "stats" },
         stat("Training", training.length, `${active.length - training.length} on a break`),
-        stat("Expected monthly", money(monthlyTotal), "if everyone pays"),
-        stat("Owed by parents", money(owedByParents), fees.length ? `${fees.length} students` : "all paid"),
-        stat("Owed to instructors", money(owedToInstructors)),
+        stat("Expected monthly", money(monthlyTotal), "if everyone pays, every month"),
         stat("Attendance", attendanceRate === null ? "—" : attendanceRate + "%",
              attendance.length ? `${attendance.length} marks` : "nothing marked yet"),
         stat("Grading fees taken", money(gradingIncome))
