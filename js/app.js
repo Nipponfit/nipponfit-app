@@ -6,7 +6,7 @@
    ===================================================================== */
 
 import * as db from "./db.js";
-import { el, clear, button, field, input, beltStrip, errorBox, spinner } from "./ui.js";
+import { el, clear, fill, button, field, input, beltStrip, errorBox, spinner } from "./ui.js";
 
 import { accountScreen } from "./screens/account.js";
 
@@ -141,6 +141,53 @@ function handedOverNumber() {
   return digits.length === 10 ? digits : "";
 }
 
+/* Forgotten a password.
+
+   Deliberately NOT a button that resets it. The dojo identifies people
+   by mobile number alone, so a reset anyone could trigger by typing a
+   number would let a stranger take over a parent's account and read
+   that child's records. There is no second factor here to stop them —
+   no email on most accounts, no SMS code.
+
+   So this does the safe thing and makes it one tap: it hands the
+   request to the dojo, with the number already written into the
+   message, and somebody who IS allowed resets it on the People tab. */
+function forgotPassword(contactBox) {
+  const panel = el("div", { style: "display:none;margin-top:10px" });
+  const help = CFG.HELP_PHONE || "9945616005";
+
+  const openIt = () => {
+    const typed = String(contactBox.value || "").replace(/\D/g, "").slice(-10);
+    const note =
+      "Hi, I have forgotten my Nippon Fit password. Please reset it." +
+      (typed.length === 10 ? ` My mobile number is ${typed}.` : "");
+
+    fill(
+      panel,
+      el("p", { class: "muted", style: "margin:0 0 10px;font-size:14px" },
+         "We will reset it for you — it takes a minute. For everyone's safety " +
+         "the dojo does it, not the app."),
+      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" },
+         el("a", { class: "btn small", href: `tel:+91${help}` }, `Call ${help}`),
+         el("a", {
+           class: "btn small quiet",
+           href: `https://wa.me/91${help}?text=${encodeURIComponent(note)}`,
+           target: "_blank", rel: "noopener",
+         }, "Ask on WhatsApp")),
+      typed.length === 10
+        ? el("p", { class: "muted", style: "margin:10px 0 0;font-size:13px" },
+             `Your message will say your number is ${typed}.`)
+        : el("p", { class: "muted", style: "margin:10px 0 0;font-size:13px" },
+             "Type your mobile number above first and it will be included for you.")
+    );
+    panel.style.display = "block";
+    link.style.display = "none";
+  };
+
+  const link = button("Forgotten your password?", openIt, "quiet small");
+  return el("div", {}, link, panel);
+}
+
 function login(prefill = "") {
   const contact = input({ name: "contact", inputmode: "tel", autocomplete: "username", autocapitalize: "off", spellcheck: "false" });
   const password = input({ name: "password", type: "password", autocomplete: "current-password" });
@@ -206,9 +253,9 @@ function login(prefill = "") {
         el(
           "p",
           { class: "help" },
-          "Use the mobile number you gave the dojo. You can also sign in with your email if we have one for you. ",
-          `Forgotten your password? Call ${CFG.HELP_PHONE || "9945616005"} and we will reset it.`
+          "Use the mobile number you gave the dojo. You can also sign in with your email if we have one for you."
         ),
+        forgotPassword(contact),
         button("Back", () => show(landing()), "quiet small")
       )
     )
