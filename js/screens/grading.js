@@ -65,7 +65,12 @@ function candidate(student, ref, refresh) {
   const { belt, next } = beltFor(student, ref);
   if (!next) return el("p", { class: "muted" }, `${student.full_name} is at the top of the kyu ladder.`);
 
-  const when = input({ type: "date", value: today() });
+  /* The date of the exam, not the date she is sitting typing this in.
+     She sets the exam date on the Students tab when she puts a child
+     forward; results are often recorded days later. Defaulting to
+     today quietly overwrote the real date on every single promotion. */
+  const examDate = student.grading_date ? String(student.grading_date).slice(0, 10) : "";
+  const when = input({ type: "date", value: examDate || today() });
   const fee = input({ type: "number", inputmode: "numeric", value: next.grading_fee ?? "" });
   const problem = el("div", {});
 
@@ -119,6 +124,7 @@ function candidate(student, ref, refresh) {
   );
 
   const state = [
+    examDate ? "exam " + shortDate(examDate) : "no exam date set",
     student.grading_form_done ? "form received" : "waiting for form",
     student.grading_fee_paid ? "fee paid" : "fee not paid",
   ].join(" · ");
