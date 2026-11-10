@@ -235,14 +235,15 @@ export function table(columns, rows, opts = {}) {
 
 /* The tricolour bar that runs across the top of the app.
 
-   Saffron, blue and green twice over. It used to be the seven belt
-   colours, white through black, but white and black read as gaps on a
-   phone and it looked like a fault rather than a flourish. */
+   Orange, white and green twice over, in the app's own orange and
+   green. The white segment sits on a cream background on the sign-in
+   panel, so the strip carries a hairline top and bottom in the
+   stylesheet — without it the white reads as a gap, not a stripe. */
 export const beltStrip = () =>
   el(
     "div",
     { class: "belt-strip" },
-    ...["#FF9933", "#1D5FA8", "#138808", "#FF9933", "#1D5FA8", "#138808"].map((c) =>
+    ...["#E8730B", "#FFFFFF", "#2E8B45", "#E8730B", "#FFFFFF", "#2E8B45"].map((c) =>
       el("i", { style: `background:${c}` })
     )
   );

@@ -60,7 +60,15 @@ html, body {
 
 .panel-body { padding: 26px 24px 30px; text-align: center; }
 
-.belt-strip { display: flex; height: 7px; }
+/* The hairlines matter: the middle stripe is white, and on the cream
+   sign-in panel a white band with no edge looks like a printing fault
+   rather than part of the tricolour. */
+.belt-strip {
+  display: flex;
+  height: 9px;                 /* 7px of colour plus the two hairlines */
+  border-top: 1px solid rgba(20, 16, 10, 0.14);
+  border-bottom: 1px solid rgba(20, 16, 10, 0.14);
+}
 .belt-strip i { flex: 1; }
 
 .brand-word {
