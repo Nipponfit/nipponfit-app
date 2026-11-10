@@ -164,21 +164,51 @@ function render({ ref, roster, holidays, extras, addons }, me) {
       String(s.break_from).slice(0, 10) <= date &&
       (!s.break_to || String(s.break_to).slice(0, 10) >= date);
 
+    /* Some class times are not the whole dojo. Dravid runs twice on a
+       Saturday and twice on a Sunday with different children in each,
+       so listing everybody meant hunting for the same name twice and
+       made it possible to mark a child present at a class they were
+       never in.
+
+       A class with no batch set behaves exactly as before: everybody
+       at the dojo. */
+    const batch = ref.batchBySession?.[sessionId] || null;
+
+    const atThisDojo = (s) =>
+      s.dojo_id === dojoId &&
+      !away(s) &&
+      (!s.joined_on || String(s.joined_on).slice(0, 10) <= date);
+
     const students = roster.filter(
       (s) =>
-        s.dojo_id === dojoId &&
-        !away(s) &&
-        (!s.joined_on || String(s.joined_on).slice(0, 10) <= date) &&
-        (!onlyForPlan || boughtIt.has(s.id))
+        atThisDojo(s) &&
+        (!onlyForPlan || boughtIt.has(s.id)) &&
+        (!batch || batch.has(s.id))
     );
 
     const notYet = roster.filter(
       (s) => s.dojo_id === dojoId && s.joined_on && String(s.joined_on).slice(0, 10) > date
     ).length;
 
+    /* Anybody at this dojo who is in NO batch for this weekday would
+       otherwise vanish from every register of the day without a word.
+       Name them instead, so a new child is noticed rather than lost. */
+    const sameDay = ref.sessions.filter(
+      (x) => x.dojo_id === dojoId && x.weekday === chosen?.weekday && x.active !== false
+    );
+    const inSomeBatch = new Set(
+      sameDay.flatMap((x) => [...(ref.batchBySession?.[x.id] || [])])
+    );
+    const anyBatchToday = sameDay.some((x) => ref.batchBySession?.[x.id]);
+    const unplaced = anyBatchToday
+      ? roster.filter((s) => atThisDojo(s) && !inSomeBatch.has(s.id) && !onlyForPlan)
+      : [];
+
     const eliteNote = onlyForPlan
       ? `Only the ${students.length} ${students.length === 1 ? "child" : "children"} who take this class.`
-      : null;
+      : batch
+        ? `This batch only — ${students.length} ${students.length === 1 ? "child" : "children"}.`
+        : null;
 
     if (students.length === 0) {
       list.replaceChildren(
@@ -190,6 +220,17 @@ function render({ ref, roster, holidays, extras, addons }, me) {
       );
       summary.textContent = "";
       return;
+    }
+
+    if (unplaced.length) {
+      notice.append(
+        el("div", { class: "notice-banner" },
+           el("strong", {}, `${unplaced.length} not in any batch today`),
+           el("p", { style: "margin:4px 0 0" },
+              unplaced.map((s) => s.full_name).join(", ") +
+              " — they are in neither class on this day, so they cannot be marked. " +
+              "Put them in a batch on the Timetable tab."))
+      );
     }
 
     list.replaceChildren(el("p", { class: "muted" }, "Loading…"));

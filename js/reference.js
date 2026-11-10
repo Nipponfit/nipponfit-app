@@ -17,11 +17,14 @@ let cache = null;
 export async function reference({ reload = false } = {}) {
   if (cache && !reload) return cache;
 
-  const [belts, dojos, plans, sessions] = await Promise.all([
+  const [belts, dojos, plans, sessions, batches] = await Promise.all([
     db.select("belts", { order: "sort_order" }),
     db.select("dojos", { order: "name" }),
     db.select("fee_plans"),
     db.select("sessions"),
+    /* Which children are in which class, where one class time is not
+       the whole dojo. Empty for most sessions, which means everybody. */
+    db.select("session_students").catch(() => []),
   ]);
 
   cache = {
@@ -29,9 +32,16 @@ export async function reference({ reload = false } = {}) {
     dojos,
     plans,
     sessions,
+    batches,
     beltById: Object.fromEntries(belts.map((b) => [b.id, b])),
     dojoById: Object.fromEntries(dojos.map((d) => [d.id, d])),
     planById: Object.fromEntries(plans.map((p) => [p.id, p])),
+    /* sessionId -> the set of children in that class. A session that
+       is not in here has no batch, and means everybody at the dojo. */
+    batchBySession: batches.reduce((map, row) => {
+      (map[row.session_id] ||= new Set()).add(row.student_id);
+      return map;
+    }, {}),
   };
   return cache;
 }

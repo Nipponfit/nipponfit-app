@@ -27,13 +27,14 @@ export async function timetableScreen({ me, refresh }) {
 }
 
 async function load() {
-  const [ref, extras, holidays, people] = await Promise.all([
+  const [ref, extras, holidays, people, students] = await Promise.all([
     reference({ reload: true }),
     db.select("one_off_sessions", { order: "on_date.desc", limit: 100 }),
     db.select("session_holidays", { order: "on_date.desc", limit: 100 }),
     db.select("profiles", { columns: "id, full_name, role" }),
+    db.select("students", { columns: "id, full_name, dojo_id, active", order: "full_name" }),
   ]);
-  return { ref, extras, holidays, people };
+  return { ref, extras, holidays, people, students };
 }
 
 /* Every change goes through here, so a failure always lands somewhere
@@ -52,7 +53,7 @@ function saver(refresh) {
   };
 }
 
-function render({ ref, extras, holidays, people }, me, refresh) {
+function render({ ref, extras, holidays, people, students }, me, refresh) {
   const save = saver(refresh);
   const teachers = people.filter((p) => p.role === "instructor" || p.role === "founder");
 
@@ -63,6 +64,7 @@ function render({ ref, extras, holidays, people }, me, refresh) {
     declareHoliday(ref, me, save),
     upcoming(extras, holidays, ref, save),
     weeklyClasses(ref, teachers, save),
+    classBatches(ref, students, save),
     dojoSettings(ref, save),
     feePlans(ref, save)
   );
@@ -437,5 +439,91 @@ function feePlans(ref, save) {
       { emptyMessage: "No fee plans are set up." }
     ),
     problem
+  );
+}
+
+
+/* Who is in which class, where one class time is not the whole dojo.
+
+   Dravid runs twice on a Saturday and twice on a Sunday with different
+   children in each. Without this the register listed everybody at the
+   dojo for both, so the same name had to be found twice and a child
+   could be marked present at a class they were never in.
+
+   Leave a class with nobody ticked and it keeps the old behaviour:
+   everybody at that dojo. That is what every other class does, and
+   why nothing else changed. */
+function classBatches(ref, students, save) {
+  const pick = el("select", { class: "input" },
+    ...ref.sessions
+      .filter((x) => x.active !== false)
+      .sort((a, b) =>
+        (ref.dojoById[a.dojo_id]?.name || "").localeCompare(ref.dojoById[b.dojo_id]?.name || "") ||
+        (DAY_ORDER[a.weekday] || 9) - (DAY_ORDER[b.weekday] || 9) ||
+        String(a.start_time).localeCompare(String(b.start_time)))
+      .map((x) =>
+        el("option", { value: x.id },
+           `${ref.dojoById[x.dojo_id]?.name || "?"} · ${x.weekday} ${x.start_time}`)));
+
+  const body = el("div", {});
+  const problem = el("div", {});
+
+  function draw() {
+    const session = ref.sessions.find((x) => x.id === pick.value);
+    if (!session) return fill(body, empty("Pick a class."));
+
+    const inBatch = ref.batchBySession?.[session.id] || new Set();
+    const mine = students.filter((s) => s.active !== false && s.dojo_id === session.dojo_id);
+
+    if (mine.length === 0) {
+      return fill(body, empty("No students at that dojo yet."));
+    }
+
+    const ticks = new Map();
+    const rows = mine.map((s) => {
+      const box = el("input", { type: "checkbox" });
+      box.checked = inBatch.has(s.id);
+      ticks.set(s.id, box);
+      return el("label",
+        { style: "display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)" },
+        box, el("span", {}, s.full_name));
+    });
+
+    const saveBtn = button("Save this batch", () => {
+      const chosen = [...ticks.entries()].filter(([, b]) => b.checked).map(([id]) => id);
+      save(
+        async () => {
+          await db.remove("session_students", { session_id: session.id });
+          if (chosen.length) {
+            await db.insert("session_students",
+              chosen.map((student_id) => ({ session_id: session.id, student_id })));
+          }
+        },
+        chosen.length
+          ? `${chosen.length} in this class.`
+          : "Cleared — this class shows everybody at the dojo again.",
+        problem
+      );
+    }, "wide");
+
+    fill(body,
+      el("p", { class: "muted", style: "margin:0 0 6px" },
+         inBatch.size
+           ? `${inBatch.size} of ${mine.length} are in this class.`
+           : "Nobody is set, so this class shows everybody at the dojo."),
+      ...rows,
+      problem,
+      saveBtn);
+  }
+
+  pick.addEventListener("change", draw);
+  draw();
+
+  return card(
+    "Who is in which class",
+    "Only needed where one class time is not the whole dojo — the two " +
+      "Dravid weekend batches. Tick nobody and that class shows everybody again.",
+    el("label", { class: "field" }, el("span", { class: "field-label" }, "Class"), pick),
+    body
   );
 }
