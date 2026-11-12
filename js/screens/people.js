@@ -17,9 +17,45 @@ function render(rows, refresh) {
   const withLogin = rows.filter((r) => r.has_login);
   const without = rows.filter((r) => !r.has_login);
 
+  /* Everyone still owed a welcome, gathered at the top.
+     They are all in the long list below as well, but with sixty-odd
+     parents on it, finding the three new ones meant scrolling and
+     squinting. This is the same button, brought to where she is
+     looking. The card disappears when nobody is waiting. */
+  const owed = rows.filter((r) => !r.welcomed_at && phoneDigits(r.contact).length === 10);
+
   return el(
     "div",
     {},
+    owed.length > 0
+      ? card(
+          `Waiting for a welcome message (${owed.length})`,
+          "Each one opens WhatsApp with the welcome and the setup guide already " +
+            "written. Send it and the name drops off this list.",
+          table(
+            [
+              { key: "person", label: "Name" },
+              { key: "role", label: "Role" },
+              { key: "contact", label: "Mobile", format: phoneDigits },
+              {
+                key: "contact",
+                label: "",
+                format: (contact, row) =>
+                  welcomeControl({
+                    digits: phoneDigits(contact),
+                    name: row.person,
+                    role: row.role,
+                    welcomedAt: null,
+                    label: "Send welcome",
+                    refresh,
+                  }) || el("span", {}),
+              },
+            ],
+            owed
+          )
+        )
+      : null,
+
     without.length > 0
       ? card(
           "No login yet",
