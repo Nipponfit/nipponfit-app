@@ -274,9 +274,20 @@ export function remove(table, match) {
   return request(`/rest/v1/${table}?${q}`, { method: "DELETE" });
 }
 
-/* Call a database function, e.g. rpc("change_my_password", {...}) */
+/* Call a database function, e.g. rpc("change_my_password", {...})
+
+   opts.keepalive asks the browser to finish the request even if the
+   page is on its way somewhere else. Tapping "Send welcome" leaves for
+   WhatsApp immediately, and without this the note that the message was
+   sent was being cancelled in mid-air — so the same parent stayed on
+   the waiting list. */
 export function rpc(name, args = {}, opts = {}) {
-  return request(`/rest/v1/rpc/${name}`, { method: "POST", body: JSON.stringify(args) }, opts);
+  const { keepalive, ...rest } = opts;
+  return request(
+    `/rest/v1/rpc/${name}`,
+    { method: "POST", body: JSON.stringify(args), ...(keepalive ? { keepalive: true } : {}) },
+    rest
+  );
 }
 
 /* ------------------------------------------------------------------ */

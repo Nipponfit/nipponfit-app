@@ -152,11 +152,35 @@ export function welcomeControl({ digits, name, role, welcomedAt, label, refresh 
   if (!link) return null;
 
   /* The link is not intercepted, so WhatsApp still opens; the note that
-     it went is written in the background. */
+     it went is written in the background.
+
+     Two things had to change here. The note is sent with keepalive, or
+     the browser cancels it as the page leaves for WhatsApp and the
+     parent stays on the waiting list. And the redraw waits until she
+     is actually looking at the app again — redrawing mid-departure
+     fired a request that was killed on the spot, which is where the
+     red "Failed to fetch" came from. */
   const remember = () => {
-    db.rpc("mark_welcomed", { p_phone: d })
-      .then(() => { if (refresh) refresh(); })
+    db.rpc("mark_welcomed", { p_phone: d }, { keepalive: true })
       .catch(() => { /* the message still went; the note can wait */ });
+
+    if (!refresh) return;
+
+    /* At this instant the page is still visible — WhatsApp opens a
+       moment later. So never redraw now. Wait to be looked at again,
+       and if WhatsApp never opened, redraw after a breath instead. */
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      clearTimeout(timer);
+      refresh();
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") go(); };
+
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = setTimeout(() => { if (document.visibilityState === "visible") go(); }, 2500);
   };
 
   return el("a", {

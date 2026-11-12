@@ -150,9 +150,25 @@ export const spinner = (label = "Loading…") =>
    plain text, it shows only that text — for the times the user simply
    missed a box, where "Something went wrong" would be alarming and
    untrue. */
+/* "Failed to fetch" is what the browser says when a request never
+   left the phone — no signal, or the page was on its way to WhatsApp
+   when it was sent. It means nothing to anyone reading it, so it gets
+   a sentence in English instead. */
+export const isNetworkError = (err) =>
+  /failed to fetch|load failed|networkerror|network request failed|the internet connection appears/i
+    .test(err?.message || String(err || ""));
+
 export const errorBox = (err) =>
   typeof err === "string"
     ? el("div", { class: "error-box gentle" }, el("p", {}, err))
+    : isNetworkError(err)
+    ? el(
+        "div",
+        { class: "error-box" },
+        el("strong", {}, "Could not reach the club's records"),
+        el("p", {}, "The phone had no connection for a moment. Nothing was lost."),
+        el("p", { class: "muted" }, "It will load again on its own as soon as the signal is back.")
+      )
     : el(
         "div",
         { class: "error-box" },
@@ -259,12 +275,47 @@ export function toast(message) {
 
 /* Load data, showing a spinner then either the error or the content.
    Every screen uses this so they all behave the same way.             */
+/* Load, then draw. A failure is not the end of the screen.
+
+   Tapping "Send welcome" sends the phone to WhatsApp, and any request
+   still in flight is cancelled as the page leaves. Coming back, she
+   met a red "Failed to fetch" where the list should have been, and the
+   only way out was to change tab and change back. So: a network
+   failure now retries itself the moment the page is looked at again,
+   or the signal returns, and there is a Try again button regardless. */
 export function section(loader, render, { label } = {}) {
   const host = el("div", {}, spinner(label));
+  let waiting = false;
+
+  const attempt = () => {
+    clear(host).append(spinner(label));
+    loader()
+      .then((data) => clear(host).append(render(data)))
+      .catch(failed);
+  };
+
+  const failed = (err) => {
+    clear(host).append(errorBox(err), button("Try again", attempt, "small"));
+    if (!isNetworkError(err) || waiting) return;
+
+    waiting = true;
+    const again = () => {
+      if (document.visibilityState === "hidden" || !navigator.onLine) return;
+      document.removeEventListener("visibilitychange", again);
+      window.removeEventListener("online", again);
+      waiting = false;
+      attempt();
+    };
+    document.addEventListener("visibilitychange", again);
+    window.addEventListener("online", again);
+    /* If the page is already in front, the blip was momentary: one
+       quiet go after a breath, rather than leaving her looking at it. */
+    if (document.visibilityState === "visible" && navigator.onLine) setTimeout(again, 1500);
+  };
 
   loader()
     .then((data) => clear(host).append(render(data)))
-    .catch((err) => clear(host).append(errorBox(err)));
+    .catch(failed);
 
   return host;
 }
